@@ -254,6 +254,18 @@ define(function (require) {
     };
 
     /**
+     * set Show toogle dataZoom 
+     */
+    echartsProto.setShowDataZoom = function(flag){
+		this[IN_MAIN_PROCESS] = true;
+		this._model.option.dataZoom[0].show = flag;
+        updateMethods.prepareAndUpdate.call(this);
+        this._zr.refreshImmediately();
+        this[IN_MAIN_PROCESS] = false;
+        this._flushPendingActions();	    		
+    }
+    
+    /**
      * @DEPRECATED
      */
     echartsProto.setTheme = function () {
