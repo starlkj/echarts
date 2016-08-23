@@ -349,50 +349,169 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 	    
 	    /**
-	     * set toggle Brush
+	     * brush variable
 	     * -- add by eltriny
 	     */
-	    echartsProto.toggleBrush = function( flag ) {
+	    // rect, polygon
+	    echartsProto.__brushType = null;
+	    // single, multiple
+	    echartsProto.__brushMode = 'single';    
+	    
+	    /**
+	     * toggle Rect Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.toggleRectBrush = function() {
+	    	if( 'rect' != this.__brushType ) {
+	    		this.setBrush( 'rect' );
+	    	}
+	    	else {
+	    		this.unsetBrush();
+	    	}
+	    };	// func - toggleRectBrush
+	    
+	    /**
+	     * toggle Poly Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.togglePolyBrush = function() {
+	    	if( 'polygon' != this.__brushType ) {
+	    		this.setBrush( 'polygon' );
+	    	}
+	    	else {
+	    		this.unsetBrush();
+	    	}
+	    };	// func - togglePolyBrush
+	    
+	    /**
+	     * toggle Multi Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.toggleMultiBrush = function() {
+	    	if( 'single' == this.__brushMode ) {
+	    		this.setMultipleBrush();
+	    	}
+	    	else {
+	    		this.unsetMultipleBrush();
+	    	}
+	    };	// func - togglePolyBrush
+
+	    /**
+	     * set Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.setBrush = function( type ) {
 	    	
-	        if( flag ) {
-	        	
-	        	// Tip 비활성화
-	        	this._api.dispatchAction( { type: 'disableTip' } );        	
-	        	
-	        	// Brush 활성화 및 Chart Cursor Cross 설정
-	        	this._api.dispatchAction({
-	                type: 'takeGlobalCursor',
-	                key	: 'brush',
-	                brushOption: {
-	                    brushType: 'rect',
-	                    brushMode: 'single'
-	                }
-	            });
-	        }
-	        else {
-	        	
-	        	// Brush 클리어
-	        	this._api.dispatchAction({
-	                type: 'brush',
-	                // Clear all areas of all brush components.
-	                areas: []
-	            });
+	    	// 설정 저장
+	    	this.__brushType = type;
+	    	
+	    	// Brush 클리어
+	    	this.clearBrush();
+	    	
+	    	// Tip 비활성화
+	    	this._api.dispatchAction( { type: 'disableTip' } );        	
+	    	
+	    	// Brush 활성화 및 Chart Cursor Cross 설정
+	    	this._api.dispatchAction({
+	            type: 'takeGlobalCursor',
+	            key	: 'brush',
+	            brushOption: {
+	                brushType: type,
+	                brushMode: 'single'
+	            }
+	        });
+	        
+	    };	// func - setBrush
 
-	        	// Chart Cursor 정상화
-	        	this._api.dispatchAction({
-	                type: 'takeGlobalCursor',
-	                key	: 'brush',
-	                brushOption: {
-	                    brushType: false,
-	                    brushMode: 'single'
-	                }
-	            });
-	        	
-	        	// Tip 활성화
-	        	this._api.dispatchAction( { type: 'enableTip' } );
+	    /**
+	     * set Multiple Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.setMultipleBrush = function() {
+	    	
+	    	// 설정 저장
+	    	var type = this.__brushType;
+	    	this.__brushMode = 'multiple';
+	    	
+	    	// Brush 클리어
+	    	this.clearBrush();   	
+	    	
+	    	// Brush 활성화 및 Chart Cursor Cross 설정
+	    	this._api.dispatchAction({
+	            type: 'takeGlobalCursor',
+	            key	: 'brush',
+	            brushOption: {
+	                brushType: type,
+	                brushMode: 'multiple'
+	            }
+	        });
+	        
+	    };	// func - setMultipleBrush
 
-	        }
-	    };	// func - toggleDisableTip
+	    /**
+	     * unset Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.unsetBrush = function() {
+	    	
+	    	// 설정 저장
+	    	this.__brushType = null;
+	    	this.__brushMode = 'single';    	
+
+	    	// Brush 클리어
+	    	this.clearBrush();
+
+	    	// Chart Cursor 정상화
+	    	this._api.dispatchAction({
+	            type: 'takeGlobalCursor',
+	            key	: 'brush',
+	            brushOption: {
+	                brushType: false,
+	                brushMode: 'single'
+	            }
+	        });
+	    	
+	    	// Tip 활성화
+	    	this._api.dispatchAction( { type: 'enableTip' } );
+
+	    };	// func - unsetBrush
+
+	    /**
+	     * unset Multiple Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.unsetMultipleBrush = function() {
+	    	
+	    	// 설정 저장
+	    	var type = this.__brushType;
+	    	this.__brushMode = 'single';
+	    	
+	    	// Brush 활성화 및 Chart Cursor Cross 설정
+	    	this._api.dispatchAction({
+	    		type: 'takeGlobalCursor',
+	    		key	: 'brush',
+	    		brushOption: {
+	    			brushType: type,
+	    			brushMode: 'single'
+	    		}
+	    	});
+	    	
+	    };	// func - unsetMultipleBrush    
+
+	    /**
+	     * clear Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.clearBrush = function() {
+	    	
+	    	// Brush 클리어
+	    	this._api.dispatchAction({
+	            type: 'brush',
+	            // Clear all areas of all brush components.
+	            areas: []
+	        });
+
+	    };	// func - toggleDisableTip    
 	    
 	    /**
 	     * @DEPRECATED
