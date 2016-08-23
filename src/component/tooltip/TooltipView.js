@@ -176,6 +176,10 @@ define(function (require) {
 
             api.on('showTip', this._manuallyShowTip, this);
             api.on('hideTip', this._manuallyHideTip, this);
+            
+            this.__disableTooltip = false;
+            api.on('enableTip', this._enableTip, this);
+            api.on('disableTip', this._disableTip, this);
         },
 
         render: function (tooltipModel, ecModel, api) {
@@ -267,6 +271,11 @@ define(function (require) {
         },
 
         _mousemove: function (e) {
+        	
+        	if( this.__disableTooltip ) {
+        		return;
+        	}
+        	
             var showDelay = this._tooltipModel.get('showDelay');
             var self = this;
             clearTimeout(this._showTimeout);
@@ -371,6 +380,14 @@ define(function (require) {
             }
 
             this._hide();
+        },
+        
+        _enableTip: function(event) {
+        	this.__disableTooltip = false;
+        },
+        
+        _disableTip: function(event) {
+        	this.__disableTooltip = true;
         },
 
         _prepareAxisTriggerData: function (tooltipModel, ecModel) {
@@ -1165,6 +1182,8 @@ define(function (require) {
 
             api.off('showTip', this._manuallyShowTip);
             api.off('hideTip', this._manuallyHideTip);
+            api.off('enableTip', this._enableTip);
+            api.off('disableTip', this._disableTip);
         }
     });
 });

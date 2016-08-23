@@ -263,7 +263,53 @@ define(function (require) {
         this._zr.refreshImmediately();
         this[IN_MAIN_PROCESS] = false;
         this._flushPendingActions();	    		
-    }
+    };
+    
+    /**
+     * set toggle Brush
+     * -- add by eltriny
+     */
+    echartsProto.toggleBrush = function( flag ) {
+    	
+        if( flag ) {
+        	
+        	// Tip 비활성화
+        	this._api.dispatchAction( { type: 'disableTip' } );        	
+        	
+        	// Brush 활성화 및 Chart Cursor Cross 설정
+        	this._api.dispatchAction({
+                type: 'takeGlobalCursor',
+                key	: 'brush',
+                brushOption: {
+                    brushType: 'rect',
+                    brushMode: 'single'
+                }
+            });
+        }
+        else {
+        	
+        	// Brush 클리어
+        	this._api.dispatchAction({
+                type: 'brush',
+                // Clear all areas of all brush components.
+                areas: []
+            });
+
+        	// Chart Cursor 정상화
+        	this._api.dispatchAction({
+                type: 'takeGlobalCursor',
+                key	: 'brush',
+                brushOption: {
+                    brushType: false,
+                    brushMode: 'single'
+                }
+            });
+        	
+        	// Tip 활성화
+        	this._api.dispatchAction( { type: 'enableTip' } );
+
+        }
+    };	// func - toggleDisableTip
     
     /**
      * @DEPRECATED

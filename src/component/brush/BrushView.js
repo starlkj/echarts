@@ -73,6 +73,13 @@ define(function (require) {
          */
         _onBrush: function (areas, opt) {
             var modelId = this.model.id;
+            
+            if( opt.isEnd && opt.removeOnClick ) {
+            	this.api.dispatchAction( { type: 'enableTip' } );
+            }
+            else {
+            	this.api.dispatchAction( { type: 'disableTip' } );            	
+            }
 
             brushHelper.parseOutputRanges(areas, this.model.coordInfoList, this.ecModel);
 

@@ -33,4 +33,24 @@ define(function (require) {
         // noop
         function () {}
     );
+    // enable tip action
+    require('../echarts').registerAction(
+		{
+			type: 'enableTip',
+			event: 'enableTip',
+			update: 'none'
+		},
+		// noop
+		function () {}
+    );
+    // disable tip action
+    require('../echarts').registerAction(
+		{
+			type: 'disableTip',
+			event: 'disableTip',
+			update: 'none'
+		},
+		// noop
+		function () {}
+    );
 });

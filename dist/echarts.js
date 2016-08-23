@@ -372,7 +372,53 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this._zr.refreshImmediately();
 	        this[IN_MAIN_PROCESS] = false;
 	        this._flushPendingActions();	    		
-	    }
+	    };
+	    
+	    /**
+	     * set toggle Brush
+	     * -- add by eltriny
+	     */
+	    echartsProto.toggleBrush = function( flag ) {
+	    	
+	        if( flag ) {
+	        	
+	        	// Tip 비활성화
+	        	this._api.dispatchAction( { type: 'disableTip' } );        	
+	        	
+	        	// Brush 활성화 및 Chart Cursor Cross 설정
+	        	this._api.dispatchAction({
+	                type: 'takeGlobalCursor',
+	                key	: 'brush',
+	                brushOption: {
+	                    brushType: 'rect',
+	                    brushMode: 'single'
+	                }
+	            });
+	        }
+	        else {
+	        	
+	        	// Brush 클리어
+	        	this._api.dispatchAction({
+	                type: 'brush',
+	                // Clear all areas of all brush components.
+	                areas: []
+	            });
+
+	        	// Chart Cursor 정상화
+	        	this._api.dispatchAction({
+	                type: 'takeGlobalCursor',
+	                key	: 'brush',
+	                brushOption: {
+	                    brushType: false,
+	                    brushMode: 'single'
+	                }
+	            });
+	        	
+	        	// Tip 활성화
+	        	this._api.dispatchAction( { type: 'enableTip' } );
+
+	        }
+	    };	// func - toggleDisableTip
 	    
 	    /**
 	     * @DEPRECATED
@@ -8123,16 +8169,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	     */
 	    transformableProto.setTransform = function (ctx) {
 	        var m = this.transform;
+	        var dpr = ctx.dpr || 1;
 	        if (m) {
-	            ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+	            ctx.setTransform(dpr * m[0], dpr * m[1], dpr * m[2], dpr * m[3], dpr * m[4], dpr * m[5]);
+	        }
+	        else {
+	            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	        }
 	    };
 
 	    transformableProto.restoreTransform = function (ctx) {
-	        var m = this.invTransform;
-	        if (m) {
-	            ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
-	        }
+	        var m = this.transform;
+	        var dpr = ctx.dpr || 1;
+	        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	    }
 
 	    var tmpTransform = [];
@@ -8819,7 +8868,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	            // kf1-----kf2---------current--------kf3
 	            // find kf2 and kf3 and do interpolation
 	            var frame;
-	            if (percent < lastFramePercent) {
+	            // In the easing function like elasticOut, percent may less than 0
+	            if (percent < 0) {
+	                frame = 0;
+	            }
+	            else if (percent < lastFramePercent) {
 	                // Start from next key
 	                // PENDING start from lastFrame ?
 	                start = Math.min(lastFrame + 1, trackLen - 1);
@@ -9174,15 +9227,15 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        constructor: Clip,
 
-	        step: function (time) {
+	        step: function (globalTime) {
 	            // Set startTime on first step, or _startTime may has milleseconds different between clips
 	            // PENDING
 	            if (!this._initialized) {
-	                this._startTime = new Date().getTime() + this._delay;
+	                this._startTime = globalTime + this._delay;
 	                this._initialized = true;
 	            }
 
-	            var percent = (time - this._startTime) / this._life;
+	            var percent = (globalTime - this._startTime) / this._life;
 
 	            // 还没开始
 	            if (percent < 0) {
@@ -9202,7 +9255,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            // 结束
 	            if (percent == 1) {
 	                if (this.loop) {
-	                    this.restart();
+	                    this.restart (globalTime);
 	                    // 重新开始周期
 	                    // 抛出而不是直接调用事件直到 stage.update 后再统一调用这些事件
 	                    return 'restart';
@@ -9217,10 +9270,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	            return null;
 	        },
 
-	        restart: function() {
-	            var time = new Date().getTime();
-	            var remainder = (time - this._startTime) % this._life;
-	            this._startTime = new Date().getTime() - remainder + this.gap;
+	        restart: function (globalTime) {
+	            var remainder = (globalTime - this._startTime) % this._life;
+	            this._startTime = globalTime - remainder + this.gap;
 
 	            this._needsRemove = false;
 	        },
@@ -11196,6 +11248,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                transform = matrix.create();
 	            }
 	            matrix.mul(transform, m, transform);
+	            this.dirty(true);
 	        };
 
 	        return opts;
@@ -12045,24 +12098,41 @@ return /******/ (function(modules) { // webpackBootstrap
 	        textVerticalAlign: null,
 
 	        /**
+	         * Only useful in Path and Image element
 	         * @type {number}
 	         */
 	        textDistance: 5,
 
 	        /**
+	         * Only useful in Path and Image element
 	         * @type {number}
 	         */
 	        textShadowBlur: 0,
 
 	        /**
+	         * Only useful in Path and Image element
 	         * @type {number}
 	         */
 	        textShadowOffsetX: 0,
 
 	        /**
+	         * Only useful in Path and Image element
 	         * @type {number}
 	         */
 	        textShadowOffsetY: 0,
+
+	        /**
+	         * If transform text
+	         * Only useful in Path and Image element
+	         * @type {boolean}
+	         */
+	        textTransform: false,
+
+	        /**
+	         * Text rotate around position of Path or Image
+	         * Only useful in Path and Image element and textTransform is false.
+	         */
+	        textRotation: 0,
 
 	        /**
 	         * @type {string}
@@ -12216,10 +12286,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	        return value;
 	    }
 
-	    function setTransform(ctx, m) {
-	        ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
-	    }
-
 	    RectText.prototype = {
 
 	        constructor: RectText,
@@ -12255,10 +12321,15 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            // Transform rect to view space
 	            var transform = this.transform;
-	            if (transform) {
-	                tmpRect.copy(rect);
-	                tmpRect.applyTransform(transform);
-	                rect = tmpRect;
+	            if (!style.textTransform) {
+	                if (transform) {
+	                    tmpRect.copy(rect);
+	                    tmpRect.applyTransform(transform);
+	                    rect = tmpRect;
+	                }
+	            }
+	            else {
+	                this.setTransform(ctx);
 	            }
 
 	            // Text position represented by coord
@@ -12304,7 +12375,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var textStroke = style.textStroke;
 	            textFill && (ctx.fillStyle = textFill);
 	            textStroke && (ctx.strokeStyle = textStroke);
-	            ctx.font = font;
+
+	            // TODO Invalid font
+	            ctx.font = font || '12px sans-serif';
 
 	            // Text shadow
 	            // Always set shadowBlur and shadowOffset to avoid leak from displayable
@@ -12314,6 +12387,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	            ctx.shadowOffsetY = style.textShadowOffsetY;
 
 	            var textLines = text.split('\n');
+
+	            if (style.textRotation) {
+	                transform && ctx.translate(transform[4], transform[5]);
+	                ctx.rotate(style.textRotation);
+	                transform && ctx.translate(-transform[4], -transform[5]);
+	            }
+
 	            for (var i = 0; i < textLines.length; i++) {
 	                textFill && ctx.fillText(textLines[i], x, y);
 	                textStroke && ctx.strokeText(textLines[i], x, y);
@@ -12433,9 +12513,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	         * @return {module:zrender/core/PathProxy}
 	         */
 	        beginPath: function (ctx) {
+
 	            this._ctx = ctx;
 
 	            ctx && ctx.beginPath();
+
+	            ctx && (this.dpr = ctx.dpr);
 
 	            // Reset
 	            this._len = 0;
@@ -14733,7 +14816,6 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            // Must bind each time
 	            style.bind(ctx, this, prevEl);
-
 	            // style.image is a url string
 	            if (typeof src === 'string') {
 	                image = this._image;
@@ -15106,7 +15188,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    textBaseline = style.textBaseline;
 	                }
 
-	                ctx.font = font;
+	                // TODO Invalid font
+	                ctx.font = font || '12px sans-serif';
 	                ctx.textAlign = textAlign || 'left';
 	                // Use canvas default left textAlign. Giving invalid value will cause state not change
 	                if (ctx.textAlign !== textAlign) {
@@ -15206,7 +15289,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * @module zrender/graphic/shape/Sector
 	 */
 
-	// FIXME clockwise seems wrong
 
 
 	    module.exports = __webpack_require__(45).extend({
@@ -16183,7 +16265,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    /**
 	     * @type {string}
 	     */
-	    zrender.version = '3.1.2';
+	    zrender.version = '3.1.3';
 
 	    /**
 	     * Initializing a zrender instance
@@ -17167,7 +17249,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            if (el instanceof Group) {
 	                el.__storage = this;
 	            }
-	            el.dirty();
+	            el.dirty(false);
 
 	            this._elements[el.id] = el;
 
@@ -17951,7 +18033,13 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        this._running = false;
 
-	        this._time = 0;
+	        this._time;
+
+	        this._pausedTime;
+
+	        this._pauseStart;
+
+	        this._paused = false;
 
 	        Dispatcher.call(this);
 	    };
@@ -18002,7 +18090,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        _update: function() {
 
-	            var time = new Date().getTime();
+	            var time = new Date().getTime() - this._pausedTime;
 	            var delta = time - this._time;
 	            var clips = this._clips;
 	            var len = clips.length;
@@ -18047,10 +18135,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                this.stage.update();
 	            }
 	        },
-	        /**
-	         * 开始运行动画
-	         */
-	        start: function () {
+
+	        _startLoop: function () {
 	            var self = this;
 
 	            this._running = true;
@@ -18060,12 +18146,22 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	                    requestAnimationFrame(step);
 
-	                    self._update();
+	                    !self._paused && self._update();
 	                }
 	            }
 
-	            this._time = new Date().getTime();
 	            requestAnimationFrame(step);
+	        },
+
+	        /**
+	         * 开始运行动画
+	         */
+	        start: function () {
+
+	            this._time = new Date().getTime();
+	            this._pausedTime = 0;
+
+	            this._startLoop();
 	        },
 	        /**
 	         * 停止运行动画
@@ -18073,6 +18169,27 @@ return /******/ (function(modules) { // webpackBootstrap
 	        stop: function () {
 	            this._running = false;
 	        },
+
+	        /**
+	         * Pause
+	         */
+	        pause: function () {
+	            if (!this._paused) {
+	                this._pauseStart = new Date().getTime();
+	                this._paused = true;
+	            }
+	        },
+
+	        /**
+	         * Resume
+	         */
+	        resume: function () {
+	            if (this._paused) {
+	                this._pausedTime += (new Date().getTime()) - this._pauseStart;
+	                this._paused = false;
+	            }
+	        },
+
 	        /**
 	         * 清除所有动画片段
 	         */
@@ -18090,6 +18207,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	         *         如果指定setter函数，会通过setter函数设置属性值
 	         * @return {module:zrender/animation/Animation~Animator}
 	         */
+	        // TODO Gap
 	        animate: function (target, options) {
 	            options = options || {};
 	            var animator = new Animator(
@@ -18725,28 +18843,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	    function doClip(clipPaths, ctx) {
 	        for (var i = 0; i < clipPaths.length; i++) {
 	            var clipPath = clipPaths[i];
-	            var m;
-	            if (clipPath.transform) {
-	                m = clipPath.transform;
-	                ctx.transform(
-	                    m[0], m[1],
-	                    m[2], m[3],
-	                    m[4], m[5]
-	                );
-	            }
 	            var path = clipPath.path;
+
+	            clipPath.setTransform(ctx);
 	            path.beginPath(ctx);
 	            clipPath.buildPath(path, clipPath.shape);
 	            ctx.clip();
 	            // Transform back
-	            if (clipPath.transform) {
-	                m = clipPath.invTransform;
-	                ctx.transform(
-	                    m[0], m[1],
-	                    m[2], m[3],
-	                    m[4], m[5]
-	                );
-	            }
+	            clipPath.restoreTransform(ctx);
 	        }
 	    }
 
@@ -19065,15 +19169,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var layerProgress;
 	            var frame = this._progress;
 	            function flushProgressiveLayer(layer) {
+	                var dpr = ctx.dpr || 1;
 	                ctx.save();
 	                ctx.globalAlpha = 1;
 	                ctx.shadowBlur = 0;
 	                // Avoid layer don't clear in next progressive frame
 	                currentLayer.__dirty = true;
-	                ctx.drawImage(layer.dom, 0, 0, width, height);
+	                ctx.setTransform(1, 0, 0, 1, 0, 0);
+	                ctx.drawImage(layer.dom, 0, 0, width * dpr, height * dpr);
 	                ctx.restore();
-
-	                currentLayer.ctx.restore();
 	            }
 
 	            for (var i = 0, l = list.length; i < l; i++) {
@@ -19123,6 +19227,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                if (!(currentLayer.__dirty || paintAll)) {
 	                    continue;
 	                }
+
 	                if (elFrame >= 0) {
 	                    // Progressive layer changed
 	                    if (!currentProgressiveLayer) {
@@ -19186,7 +19291,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        _doPaintEl: function (el, currentLayer, forcePaint, scope) {
 	            var ctx = currentLayer.ctx;
-
+	            var m = el.transform;
 	            if (
 	                (currentLayer.__dirty || forcePaint)
 	                // Ignore invisible element
@@ -19195,7 +19300,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                && el.style.opacity !== 0
 	                // Ignore scale 0 element, in some environment like node-canvas
 	                // Draw a scale 0 element can cause all following draw wrong
-	                && el.scale[0] && el.scale[1]
+	                // And setTransform with scale 0 will cause set back transform failed.
+	                && !(m && !m[0] && !m[3])
 	                // Ignore culled element
 	                && !(el.culling && isDisplayableCulled(el, this._width, this._height))
 	            ) {
@@ -19822,10 +19928,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        initContext: function () {
 	            this.ctx = this.dom.getContext('2d');
 
-	            var dpr = this.dpr;
-	            if (dpr != 1) {
-	                this.ctx.scale(dpr, dpr);
-	            }
+	            this.ctx.dpr = this.dpr;
 	        },
 
 	        createBackBuffer: function () {
@@ -19855,10 +19958,6 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            dom.width = width * dpr;
 	            dom.height = height * dpr;
-
-	            if (dpr != 1) {
-	                this.ctx.scale(dpr, dpr);
-	            }
 
 	            if (domBack) {
 	                domBack.width = width * dpr;
@@ -19899,7 +19998,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                );
 	            }
 
-	            ctx.clearRect(0, 0, width / dpr, height / dpr);
+	            ctx.clearRect(0, 0, width, height);
 	            if (clearColor) {
 	                var clearColorGradientOrPattern;
 	                // Gradient
@@ -19908,8 +20007,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    clearColorGradientOrPattern = clearColor.__canvasGradient || Style.getGradient(ctx, clearColor, {
 	                        x: 0,
 	                        y: 0,
-	                        width: width / dpr,
-	                        height: height / dpr
+	                        width: width,
+	                        height: height
 	                    });
 
 	                    clearColor.__canvasGradient = clearColorGradientOrPattern;
@@ -19920,7 +20019,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                }
 	                ctx.save();
 	                ctx.fillStyle = clearColorGradientOrPattern || clearColor;
-	                ctx.fillRect(0, 0, width / dpr, height / dpr);
+	                ctx.fillRect(0, 0, width, height);
 	                ctx.restore();
 	            }
 
@@ -19928,7 +20027,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                var domBack = this.domBack;
 	                ctx.save();
 	                ctx.globalAlpha = lastFrameAlpha;
-	                ctx.drawImage(domBack, 0, 0, width / dpr, height / dpr);
+	                ctx.drawImage(domBack, 0, 0, width, height);
 	                ctx.restore();
 	            }
 	        }
@@ -47168,6 +47267,26 @@ return /******/ (function(modules) { // webpackBootstrap
 	        // noop
 	        function () {}
 	    );
+	    // enable tip action
+	    __webpack_require__(1).registerAction(
+			{
+				type: 'enableTip',
+				event: 'enableTip',
+				update: 'none'
+			},
+			// noop
+			function () {}
+	    );
+	    // disable tip action
+	    __webpack_require__(1).registerAction(
+			{
+				type: 'disableTip',
+				event: 'disableTip',
+				update: 'none'
+			},
+			// noop
+			function () {}
+	    );
 
 
 /***/ },
@@ -47461,6 +47580,10 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            api.on('showTip', this._manuallyShowTip, this);
 	            api.on('hideTip', this._manuallyHideTip, this);
+	            
+	            this.__disableTooltip = false;
+	            api.on('enableTip', this._enableTip, this);
+	            api.on('disableTip', this._disableTip, this);
 	        },
 
 	        render: function (tooltipModel, ecModel, api) {
@@ -47552,6 +47675,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	        },
 
 	        _mousemove: function (e) {
+	        	
+	        	if( this.__disableTooltip ) {
+	        		return;
+	        	}
+	        	
 	            var showDelay = this._tooltipModel.get('showDelay');
 	            var self = this;
 	            clearTimeout(this._showTimeout);
@@ -47656,6 +47784,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	            }
 
 	            this._hide();
+	        },
+	        
+	        _enableTip: function(event) {
+	        	this.__disableTooltip = false;
+	        },
+	        
+	        _disableTip: function(event) {
+	        	this.__disableTooltip = true;
 	        },
 
 	        _prepareAxisTriggerData: function (tooltipModel, ecModel) {
@@ -48450,6 +48586,8 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            api.off('showTip', this._manuallyShowTip);
 	            api.off('hideTip', this._manuallyHideTip);
+	            api.off('enableTip', this._enableTip);
+	            api.off('disableTip', this._disableTip);
 	        }
 	    });
 
@@ -52028,6 +52166,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	         */
 	        _onBrush: function (areas, opt) {
 	            var modelId = this.model.id;
+	            
+	            if( opt.isEnd && opt.removeOnClick ) {
+	            	this.api.dispatchAction( { type: 'enableTip' } );
+	            }
+	            else {
+	            	this.api.dispatchAction( { type: 'disableTip' } );            	
+	            }
 
 	            brushHelper.parseOutputRanges(areas, this.model.coordInfoList, this.ecModel);
 
@@ -60806,7 +60951,6 @@ return /******/ (function(modules) { // webpackBootstrap
 /***/ function(module, exports) {
 
 	// shim for using process in browser
-
 	var process = module.exports = {};
 
 	// cached from whatever global is present so that test runners that stub it
@@ -60818,21 +60962,63 @@ return /******/ (function(modules) { // webpackBootstrap
 	var cachedClearTimeout;
 
 	(function () {
-	  try {
-	    cachedSetTimeout = setTimeout;
-	  } catch (e) {
-	    cachedSetTimeout = function () {
-	      throw new Error('setTimeout is not defined');
+	    try {
+	        cachedSetTimeout = setTimeout;
+	    } catch (e) {
+	        cachedSetTimeout = function () {
+	            throw new Error('setTimeout is not defined');
+	        }
 	    }
-	  }
-	  try {
-	    cachedClearTimeout = clearTimeout;
-	  } catch (e) {
-	    cachedClearTimeout = function () {
-	      throw new Error('clearTimeout is not defined');
+	    try {
+	        cachedClearTimeout = clearTimeout;
+	    } catch (e) {
+	        cachedClearTimeout = function () {
+	            throw new Error('clearTimeout is not defined');
+	        }
 	    }
-	  }
 	} ())
+	function runTimeout(fun) {
+	    if (cachedSetTimeout === setTimeout) {
+	        //normal enviroments in sane situations
+	        return setTimeout(fun, 0);
+	    }
+	    try {
+	        // when when somebody has screwed with setTimeout but no I.E. maddness
+	        return cachedSetTimeout(fun, 0);
+	    } catch(e){
+	        try {
+	            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+	            return cachedSetTimeout.call(null, fun, 0);
+	        } catch(e){
+	            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+	            return cachedSetTimeout.call(this, fun, 0);
+	        }
+	    }
+
+
+	}
+	function runClearTimeout(marker) {
+	    if (cachedClearTimeout === clearTimeout) {
+	        //normal enviroments in sane situations
+	        return clearTimeout(marker);
+	    }
+	    try {
+	        // when when somebody has screwed with setTimeout but no I.E. maddness
+	        return cachedClearTimeout(marker);
+	    } catch (e){
+	        try {
+	            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+	            return cachedClearTimeout.call(null, marker);
+	        } catch (e){
+	            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+	            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+	            return cachedClearTimeout.call(this, marker);
+	        }
+	    }
+
+
+
+	}
 	var queue = [];
 	var draining = false;
 	var currentQueue;
@@ -60857,7 +61043,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (draining) {
 	        return;
 	    }
-	    var timeout = cachedSetTimeout.call(null, cleanUpNextTick);
+	    var timeout = runTimeout(cleanUpNextTick);
 	    draining = true;
 
 	    var len = queue.length;
@@ -60874,7 +61060,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	    currentQueue = null;
 	    draining = false;
-	    cachedClearTimeout.call(null, timeout);
+	    runClearTimeout(timeout);
 	}
 
 	process.nextTick = function (fun) {
@@ -60886,7 +61072,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	    queue.push(new Item(fun, args));
 	    if (queue.length === 1 && !draining) {
-	        cachedSetTimeout.call(null, drainQueue, 0);
+	        runTimeout(drainQueue);
 	    }
 	};
 
