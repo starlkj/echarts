@@ -12,4 +12,5 @@ npm run prepublish
 ./node_modules/.bin/webpack --config extension/webpack.config.js
 ./node_modules/.bin/webpack --config extension/webpack.config.js -p
 
-
+rm -rf ../echart-sample/WebContent/dist/*.js
+cp -R dist/*.js ../echart-sample/WebContent/dist/

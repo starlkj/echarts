@@ -448,7 +448,7 @@ define(function (require) {
      * @return {Object}
      */
     echartsProto.getOption = function () {
-        return this._model.getOption();
+        return this._model && this._model.getOption();
     };
 
     /**
@@ -1372,9 +1372,9 @@ define(function (require) {
         /**
          * @type {number}
          */
-        version: '3.2.2',
+        version: '3.2.3',
         dependencies: {
-            zrender: '3.1.2'
+            zrender: '3.1.3'
         }
     };
 

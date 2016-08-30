@@ -557,7 +557,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	     * @return {Object}
 	     */
 	    echartsProto.getOption = function () {
-	        return this._model.getOption();
+	        return this._model && this._model.getOption();
 	    };
 
 	    /**
@@ -1481,9 +1481,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	        /**
 	         * @type {number}
 	         */
-	        version: '3.2.2',
+	        version: '3.2.3',
 	        dependencies: {
-	            zrender: '3.1.2'
+	            zrender: '3.1.3'
 	        }
 	    };
 
@@ -3935,9 +3935,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	     * @param {number} x
 	     * @return {number}
 	     */
-	    number.round = function (x) {
+	    number.round = function (x, precision) {
+	        if (precision == null) {
+	            precision = 10;
+	        }
 	        // PENDING
-	        return +(+x).toFixed(10);
+	        return +(+x).toFixed(precision);
 	    };
 
 	    number.asc = function (arr) {
@@ -3967,6 +3970,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	            count++;
 	        }
 	        return count;
+	    };
+
+	    number.getPrecisionSafe = function (val) {
+	        var str = val.toString();
+	        var dotIndex = str.indexOf('.');
+	        if (dotIndex < 0) {
+	            return 0;
+	        }
+	        return str.length - 1 - dotIndex;
 	    };
 
 	    /**
@@ -22872,6 +22884,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	                next = turnPointsIntoStep(diff.next, coordSys, step);
 	                stackedOnNext = turnPointsIntoStep(diff.stackedOnNext, coordSys, step);
 	            }
+	            // `diff.current` is subset of `current` (which should be ensured by
+	            // turnPointsIntoStep), so points in `__points` can be updated when
+	            // points in `current` are update during animation.
 	            polyline.shape.__points = diff.current;
 	            polyline.shape.points = current;
 
@@ -22888,9 +22903,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                });
 	                graphic.updateProps(polygon, {
 	                    shape: {
-	                        points: next,
-	                        stackedOnPoints: stackedOnNext,
-	                        __points: diff.next
+	                        // points: next, // Have been updated by polyline.
+	                        stackedOnPoints: stackedOnNext
 	                    }
 	                }, seriesModel);
 	            }
@@ -22971,6 +22985,10 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    function symbolNeedsDraw(data, idx, isIgnore) {
 	        var point = data.getItemLayout(idx);
+	        // Is an object
+	        // if (point && point.hasOwnProperty('point')) {
+	        //     point = point.point;
+	        // }
 	        return point && !isNaN(point[0]) && !isNaN(point[1]) && !(isIgnore && isIgnore(idx))
 	                    && data.getItemVisual(idx, 'symbol') !== 'none';
 	    }
@@ -23151,6 +23169,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 
 	    /**
+	     * Get symbol path element
+	     */
+	    symbolProto.getSymbolPath = function () {
+	        return this.childAt(0);
+	    };
+
+	    /**
 	     * Get scale(aka, current symbol size).
 	     * Including the change caused by animation
 	     */
@@ -23320,7 +23345,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	            .off('emphasis')
 	            .off('normal');
 
-	        graphic.setHoverStyle(symbolPath, hoverItemStyle);
+	        symbolPath.hoverStyle = hoverItemStyle;
+
+	        graphic.setHoverStyle(symbolPath);
 
 	        if (hoverAnimation && seriesModel.ifEnableAnimation()) {
 	            var onEmphasis = function() {
@@ -24965,6 +24992,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	        var fixMin = (model.getMin ? model.getMin() : model.get('min')) != null;
 	        var fixMax = (model.getMax ? model.getMax() : model.get('max')) != null;
 	        var splitNumber = model.get('splitNumber');
+
+	        if (scale.type === 'log') {
+	            scale.base = model.get('logBase');
+	        }
+
 	        scale.setExtent(extent[0], extent[1]);
 	        scale.niceExtent(splitNumber, fixMin, fixMax);
 
@@ -25359,6 +25391,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    var mathFloor = Math.floor;
 	    var mathCeil = Math.ceil;
+
+	    var getPrecisionSafe = numberUtil.getPrecisionSafe;
+	    var roundingErrorFix = numberUtil.round;
 	    /**
 	     * @alias module:echarts/coord/scale/Interval
 	     * @constructor
@@ -25424,6 +25459,8 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            if (interval) {
 	                var niceExtent = this._niceExtent;
+	                var precision = getPrecisionSafe(interval) + 2;
+
 	                if (extent[0] < niceExtent[0]) {
 	                    ticks.push(extent[0]);
 	                }
@@ -25431,7 +25468,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                while (tick <= niceExtent[1]) {
 	                    ticks.push(tick);
 	                    // Avoid rounding error
-	                    tick = numberUtil.round(tick + interval);
+	                    tick = roundingErrorFix(tick + interval, precision);
 	                    if (ticks.length > safeLimit) {
 	                        return [];
 	                    }
@@ -25485,12 +25522,21 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            // From "Nice Numbers for Graph Labels" of Graphic Gems
 	            // var niceSpan = numberUtil.nice(span, false);
-	            var step = numberUtil.nice(span / splitNumber, true);
+	            var step = roundingErrorFix(
+	                numberUtil.nice(span / splitNumber, true),
+	                Math.max(
+	                    getPrecisionSafe(extent[0]),
+	                    getPrecisionSafe(extent[1])
+	                // extent may be [0, 1], and step should have 1 more digits.
+	                // To make it safe we add 2 more digits
+	                ) + 2
+	            );
 
+	            var precision = getPrecisionSafe(step) + 2;
 	            // Niced extent inside original extent
 	            var niceExtent = [
-	                numberUtil.round(mathCeil(extent[0] / step) * step),
-	                numberUtil.round(mathFloor(extent[1] / step) * step)
+	                roundingErrorFix(mathCeil(extent[0] / step) * step, precision),
+	                roundingErrorFix(mathFloor(extent[1] / step) * step, precision)
 	            ];
 
 	            this._interval = step;
@@ -25540,10 +25586,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var interval = this._interval;
 
 	            if (!fixMin) {
-	                extent[0] = numberUtil.round(mathFloor(extent[0] / interval) * interval);
+	                extent[0] = roundingErrorFix(mathFloor(extent[0] / interval) * interval);
 	            }
 	            if (!fixMax) {
-	                extent[1] = numberUtil.round(mathCeil(extent[1] / interval) * interval);
+	                extent[1] = roundingErrorFix(mathCeil(extent[1] / interval) * interval);
 	            }
 	        }
 	    });
@@ -25749,20 +25795,21 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var mathCeil = Math.ceil;
 	    var mathPow = Math.pow;
 
-	    var LOG_BASE = 10;
 	    var mathLog = Math.log;
 
 	    var LogScale = Scale.extend({
 
 	        type: 'log',
 
+	        base: 10,
+
 	        /**
 	         * @return {Array.<number>}
 	         */
 	        getTicks: function () {
 	            return zrUtil.map(intervalScaleProto.getTicks.call(this), function (val) {
-	                return numberUtil.round(mathPow(LOG_BASE, val));
-	            });
+	                return numberUtil.round(mathPow(this.base, val));
+	            }, this);
 	        },
 
 	        /**
@@ -25777,7 +25824,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	         */
 	        scale: function (val) {
 	            val = scaleProto.scale.call(this, val);
-	            return mathPow(LOG_BASE, val);
+	            return mathPow(this.base, val);
 	        },
 
 	        /**
@@ -25785,8 +25832,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	         * @param {number} end
 	         */
 	        setExtent: function (start, end) {
-	            start = mathLog(start) / mathLog(LOG_BASE);
-	            end = mathLog(end) / mathLog(LOG_BASE);
+	            var base = this.base;
+	            start = mathLog(start) / mathLog(base);
+	            end = mathLog(end) / mathLog(base);
 	            intervalScaleProto.setExtent.call(this, start, end);
 	        },
 
@@ -25794,9 +25842,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	         * @return {number} end
 	         */
 	        getExtent: function () {
+	            var base = this.base;
 	            var extent = scaleProto.getExtent.call(this);
-	            extent[0] = mathPow(LOG_BASE, extent[0]);
-	            extent[1] = mathPow(LOG_BASE, extent[1]);
+	            extent[0] = mathPow(base, extent[0]);
+	            extent[1] = mathPow(base, extent[1]);
 	            return extent;
 	        },
 
@@ -25804,8 +25853,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	         * @param  {Array.<number>} extent
 	         */
 	        unionExtent: function (extent) {
-	            extent[0] = mathLog(extent[0]) / mathLog(LOG_BASE);
-	            extent[1] = mathLog(extent[1]) / mathLog(LOG_BASE);
+	            var base = this.base;
+	            extent[0] = mathLog(extent[0]) / mathLog(base);
+	            extent[1] = mathLog(extent[1]) / mathLog(base);
 	            scaleProto.unionExtent.call(this, extent);
 	        },
 
@@ -25821,13 +25871,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	                return;
 	            }
 
-	            var interval = mathPow(10, mathFloor(mathLog(span / approxTickNum) / Math.LN10));
+	            var interval = numberUtil.quantity(span);
 	            var err = approxTickNum / span * interval;
 
 	            // Filter ticks to get closer to the desired count.
 	            if (err <= 0.5) {
 	                interval *= 10;
 	            }
+
+	            // Interval should be integer
+	            while (!isNaN(interval) && Math.abs(interval) < 1 && Math.abs(interval) > 0) {
+	                interval *= 10;
+	            }
+
 	            var niceExtent = [
 	                numberUtil.round(mathCeil(extent[0] / interval) * interval),
 	                numberUtil.round(mathFloor(extent[1] / interval) * interval)
@@ -25848,7 +25904,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    zrUtil.each(['contain', 'normalize'], function (methodName) {
 	        LogScale.prototype[methodName] = function (val) {
-	            val = mathLog(val) / mathLog(LOG_BASE);
+	            val = mathLog(val) / mathLog(this.base);
 	            return scaleProto[methodName].call(this, val);
 	        };
 	    });
@@ -26848,7 +26904,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	        min: 'dataMin',
 	        max: 'dataMax'
 	    }, valueAxis);
-	    var logAxis = zrUtil.defaults({}, valueAxis);
+	    var logAxis = zrUtil.defaults({
+	        logBase: 10
+	    }, valueAxis);
 	    logAxis.scale = true;
 
 	    module.exports = {
@@ -30347,7 +30405,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	                        points.push(axesTicksPoints[j][i]);
 	                    }
 	                    // Close
-	                    points.push(points[0].slice());
+	                    if (points[0]) {
+	                        points.push(points[0].slice());
+	                    }
+	                    else {
+	                        if (true) {
+	                            console.error('Can\'t draw value axis ' + i);
+	                            continue;
+	                        }
+	                    }
 	                    if (showSplitLine) {
 	                        var colorIndex = getColorIndex(splitLines, splitLineColors, i);
 	                        splitLines[colorIndex].push(new graphic.Polyline({
@@ -32244,8 +32310,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	            group.removeAll();
 	            // Not update map if it is an roam action from self
 	            if (!(payload && payload.type === 'geoRoam'
-	                && payload.component === 'series'
-	                && payload.name === mapModel.name)) {
+	                && payload.componentType === 'series'
+	                && payload.seriesId === mapModel.id)) {
 
 	                if (mapModel.needsDrawMap) {
 	                    var mapDraw = this._mapDraw || new MapDraw(api, true);
@@ -37082,11 +37148,18 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            focusNodeAdjacency: false,
 
-	            // Configuration of force
+	            // Configuration of circular layout
+	            circular: {
+	                rotateLabel: false
+	            },
+	            // Configuration of force directed layout
 	            force: {
 	                initLayout: null,
-	                repulsion: 50,
+	                // Node repulsion. Can be an array to represent range.
+	                repulsion: [0, 50],
 	                gravity: 0.1,
+
+	                // Edge length. Can be an array to represent range.
 	                edgeLength: 30,
 
 	                layoutAnimation: true
@@ -37187,14 +37260,16 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        var linkNameList = [];
 	        var validEdges = [];
+	        var linkCount = 0;
 	        for (var i = 0; i < edges.length; i++) {
 	            var link = edges[i];
 	            var source = link.source;
 	            var target = link.target;
 	            // addEdge may fail when source or target not exists
-	            if (graph.addEdge(source, target, i)) {
+	            if (graph.addEdge(source, target, linkCount)) {
 	                validEdges.push(link);
 	                linkNameList.push(zrUtil.retrieve(link.id, source + ' > ' + target));
+	                linkCount++;
 	            }
 	        }
 
@@ -37870,6 +37945,35 @@ return /******/ (function(modules) { // webpackBootstrap
 	                }
 	            }, this);
 
+	            var circularRotateLabel = seriesModel.get('layout') === 'circular' && seriesModel.get('circular.rotateLabel');
+	            var cx = data.getLayout('cx');
+	            var cy = data.getLayout('cy');
+	            data.eachItemGraphicEl(function (el, idx) {
+	                var symbolPath = el.getSymbolPath();
+	                if (circularRotateLabel) {
+	                    var pos = data.getItemLayout(idx);
+	                    var rad = Math.atan2(pos[1] - cy, pos[0] - cx);
+	                    if (rad < 0) {
+	                        rad = Math.PI * 2 + rad;
+	                    }
+	                    var isLeft = pos[0] < cx;
+	                    if (isLeft) {
+	                        rad = rad - Math.PI;
+	                    }
+	                    var textPosition = isLeft ? 'left' : 'right';
+	                    symbolPath.setStyle({
+	                        textRotation: rad,
+	                        textPosition: textPosition
+	                    });
+	                    symbolPath.hoverStyle && (symbolPath.hoverStyle.textPosition = textPosition);
+	                }
+	                else {
+	                    symbolPath.setStyle({
+	                        textRotation: 0
+	                    });
+	                }
+	            });
+
 	            this._firstRender = false;
 	        },
 
@@ -38215,6 +38319,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	            targetShape.cpx1 = cp1[0];
 	            targetShape.cpy1 = cp1[1];
 	        }
+	        else {
+	            targetShape.cpx1 = NaN;
+	            targetShape.cpy1 = NaN;
+	        }
 	    }
 
 	    function updateSymbolAndLabelBeforeLineUpdate () {
@@ -38413,6 +38521,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 
 	        var visualColor = lineData.getItemVisual(idx, 'color');
+	        var visualOpacity = zrUtil.retrieve(
+	            lineData.getItemVisual(idx, 'opacity'),
+	            lineStyle.opacity,
+	            1
+	        );
 	        if (isNaN(defaultText)) {
 	            // Use name
 	            defaultText = lineData.getName(idx);
@@ -38421,11 +38534,23 @@ return /******/ (function(modules) { // webpackBootstrap
 	            {
 	                strokeNoScale: true,
 	                fill: 'none',
-	                stroke: visualColor
+	                stroke: visualColor,
+	                opacity: visualOpacity
 	            },
 	            lineStyle
 	        ));
 	        line.hoverStyle = hoverLineStyle;
+
+	        // Update symbol
+	        zrUtil.each(SYMBOL_CATEGORIES, function (symbolCategory) {
+	            var symbol = this.childOfName(symbolCategory);
+	            if (symbol) {
+	                symbol.setColor(visualColor);
+	                symbol.setStyle({
+	                    opacity: visualOpacity
+	                });
+	            }
+	        }, this);
 
 	        var showLabel = labelModel.getShallow('show');
 	        var hoverShowLabel = hoverLabelModel.getShallow('show');
@@ -38508,7 +38633,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var bezierCurveProto = graphic.BezierCurve.prototype;
 
 	    function isLine(shape) {
-	        return shape.cpx1 == null || shape.cpy1 == null;
+	        return isNaN(+shape.cpx1) || isNaN(+shape.cpy1);
 	    }
 
 	    module.exports = graphic.extendShape({
@@ -38803,6 +38928,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 
 	    module.exports = function (ecModel) {
+
+	        var paletteScope = {};
 	        ecModel.eachSeriesByType('graph', function (seriesModel) {
 	            var categoriesData = seriesModel.getCategoriesData();
 	            var data = seriesModel.getData();
@@ -38815,7 +38942,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	                var itemModel = categoriesData.getItemModel(idx);
 	                var color = itemModel.get('itemStyle.normal.color')
-	                    || seriesModel.getColorFromPalette(name);
+	                    || seriesModel.getColorFromPalette(name, paletteScope);
 	                categoriesData.setItemVisual(idx, 'color', color);
 	            });
 
@@ -38860,11 +38987,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var symbolType = normalize(seriesModel.get('edgeSymbol'));
 	            var symbolSize = normalize(seriesModel.get('edgeSymbolSize'));
 
+	            var colorQuery = 'lineStyle.normal.color'.split('.');
+	            var opacityQuery = 'lineStyle.normal.opacity'.split('.');
+
 	            edgeData.setVisual('fromSymbol', symbolType && symbolType[0]);
 	            edgeData.setVisual('toSymbol', symbolType && symbolType[1]);
 	            edgeData.setVisual('fromSymbolSize', symbolSize && symbolSize[0]);
 	            edgeData.setVisual('toSymbolSize', symbolSize && symbolSize[1]);
-	            edgeData.setVisual('color', seriesModel.get('lineStyle.normal.color'));
+	            edgeData.setVisual('color', seriesModel.get(colorQuery));
+	            edgeData.setVisual('opacity', seriesModel.get(opacityQuery));
 
 	            edgeData.each(function (idx) {
 	                var itemModel = edgeData.getItemModel(idx);
@@ -38872,7 +39003,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                var symbolType = normalize(itemModel.getShallow('symbol', true));
 	                var symbolSize = normalize(itemModel.getShallow('symbolSize', true));
 	                // Edge visual must after node visual
-	                var color = itemModel.get('lineStyle.normal.color');
+	                var color = itemModel.get(colorQuery);
+	                var opacity = itemModel.get(opacityQuery);
 	                switch (color) {
 	                    case 'source':
 	                        color = edge.node1.getVisual('color');
@@ -38888,6 +39020,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                symbolSize[1] && edge.setVisual('toSymbolSize', symbolSize[1]);
 
 	                edge.setVisual('color', color);
+	                edge.setVisual('opacity', opacity);
 	            });
 	        });
 	    };
@@ -39027,6 +39160,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	            angle += unitAngle * (sum ? value : 2) / 2;
 	        });
 
+	        nodeData.setLayout({
+	            cx: cx,
+	            cy: cy
+	        });
+
 	        graph.eachEdge(function (edge) {
 	            var curveness = edge.getModel().get('lineStyle.normal.curveness') || 0;
 	            var p1 = vec2.clone(edge.node1.getLayout());
@@ -39057,6 +39195,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var simpleLayoutHelper = __webpack_require__(208);
 	    var circularLayoutHelper = __webpack_require__(211);
 	    var vec2 = __webpack_require__(10);
+	    var zrUtil = __webpack_require__(4);
 
 	    module.exports = function (ecModel) {
 	        ecModel.eachSeriesByType('graph', function (graphSeries) {
@@ -39085,13 +39224,26 @@ return /******/ (function(modules) { // webpackBootstrap
 	                }
 
 	                var nodeDataExtent = nodeData.getDataExtent('value');
+	                var edgeDataExtent = edgeData.getDataExtent('value');
 	                // var edgeDataExtent = edgeData.getDataExtent('value');
 	                var repulsion = forceModel.get('repulsion');
 	                var edgeLength = forceModel.get('edgeLength');
+	                if (!zrUtil.isArray(repulsion)) {
+	                    repulsion = [repulsion, repulsion];
+	                }
+	                if (!zrUtil.isArray(edgeLength)) {
+	                    edgeLength = [edgeLength, edgeLength];
+	                }
+	                // Larger value has smaller length
+	                edgeLength = [edgeLength[1], edgeLength[0]];
+
 	                var nodes = nodeData.mapArray('value', function (value, idx) {
 	                    var point = nodeData.getItemLayout(idx);
 	                    // var w = numberUtil.linearMap(value, nodeDataExtent, [0, 50]);
-	                    var rep = numberUtil.linearMap(value, nodeDataExtent, [0, repulsion]) || (repulsion / 2);
+	                    var rep = numberUtil.linearMap(value, nodeDataExtent, repulsion);
+	                    if (isNaN(rep)) {
+	                        rep = (repulsion[0] + repulsion[1]) / 2;
+	                    }
 	                    return {
 	                        w: rep,
 	                        rep: rep,
@@ -39100,11 +39252,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	                });
 	                var edges = edgeData.mapArray('value', function (value, idx) {
 	                    var edge = graph.getEdgeByIndex(idx);
-	                    // var w = numberUtil.linearMap(value, edgeDataExtent, [0, 100]);
+	                    var d = numberUtil.linearMap(value, edgeDataExtent, edgeLength);
+	                    if (isNaN(d)) {
+	                        d = (edgeLength[0] + edgeLength[1]) / 2;
+	                    }
 	                    return {
 	                        n1: nodes[edge.node1.dataIndex],
 	                        n2: nodes[edge.node2.dataIndex],
-	                        d: edgeLength,
+	                        d: d,
 	                        curveness: edge.getModel().get('lineStyle.normal.curveness') || 0
 	                    };
 	                });
@@ -43090,7 +43245,10 @@ return /******/ (function(modules) { // webpackBootstrap
 /* 239 */
 /***/ function(module, exports, __webpack_require__) {
 
-	'use strict';
+	/**
+	 * @file Get initial data and define sankey view's series model
+	 * @author Deqing Li(annong035@gmail.com)
+	 */
 
 
 	    var SeriesModel = __webpack_require__(28);
@@ -43102,7 +43260,13 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        layoutInfo: null,
 
-	        getInitialData: function (option, ecModel) {
+	        /**
+	         * Init a graph data structure from data in option series
+	         *
+	         * @param  {Object} option  the object used to config echarts view
+	         * @return {module:echarts/data/List} storage initial data
+	         */
+	        getInitialData: function (option) {
 	            var links = option.edges || option.links;
 	            var nodes = option.data || option.nodes;
 	            if (nodes && links) {
@@ -43112,16 +43276,20 @@ return /******/ (function(modules) { // webpackBootstrap
 	        },
 
 	        /**
-	         * @return {module:echarts/data/Graph}
+	         * Return the graphic data structure
+	         *
+	         * @return {module:echarts/data/Graph} graphic data structure
 	         */
 	        getGraph: function () {
 	            return this.getData().graph;
 	        },
 
 	        /**
-	         * return {module:echarts/data/List}
+	         * Get edge data of graphic data structure
+	         *
+	         * @return {module:echarts/data/List} data structure of list
 	         */
-	        getEdgeData: function() {
+	        getEdgeData: function () {
 	            return this.getGraph().edgeData;
 	        },
 
@@ -43129,6 +43297,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	         * @override
 	         */
 	        formatTooltip: function (dataIndex, multipleSeries, dataType) {
+	            // dataType === 'node' or empty do not show tooltip by default
 	            if (dataType === 'edge') {
 	                var params = this.getDataParams(dataIndex, dataType);
 	                var rawDataOpt = params.data;
@@ -43138,10 +43307,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                }
 	                return html;
 	            }
-	            else {
-	                return SankeySeries.superCall(this, 'formatTooltip', dataIndex, multipleSeries);
-	            }
-	            // dataType === 'node' or empty do not show tooltip by default.
+
+	            return SankeySeries.superCall(this, 'formatTooltip', dataIndex, multipleSeries);
 	        },
 
 	        defaultOption: {
@@ -43150,7 +43317,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            coordinateSystem: 'view',
 
-	            layout : null,
+	            layout: null,
 
 	            // the position of the whole view
 	            left: '5%',
@@ -43161,7 +43328,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            // the dx of the node
 	            nodeWidth: 20,
 
-	            // the distance between two nodes
+	            // the vertical distance between two nodes
 	            nodeGap: 8,
 
 	            // the number of iterations to change the position of the node
@@ -43209,11 +43376,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	    module.exports = SankeySeries;
 
 
+
 /***/ },
 /* 240 */
 /***/ function(module, exports, __webpack_require__) {
 
-	
+	/**
+	 * @file  The file used to draw sankey view
+	 * @author  Deqing Li(annong035@gmail.com)
+	 */
+
 
 	    var graphic = __webpack_require__(43);
 	    var zrUtil = __webpack_require__(4);
@@ -43256,7 +43428,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	         */
 	        _model: null,
 
-	        render: function(seriesModel, ecModel, api) {
+	        render: function (seriesModel, ecModel, api) {
 	            var graph = seriesModel.getGraph();
 	            var group = this.group;
 	            var layoutInfo = seriesModel.layoutInfo;
@@ -43268,60 +43440,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	            group.removeAll();
 
 	            group.position = [layoutInfo.x, layoutInfo.y];
-
-	            // generate a rect  for each node
-	            graph.eachNode(function (node) {
-	                var layout = node.getLayout();
-	                var itemModel = node.getModel();
-	                var labelModel = itemModel.getModel('label.normal');
-	                var textStyleModel = labelModel.getModel('textStyle');
-	                var labelHoverModel = itemModel.getModel('label.emphasis');
-	                var textStyleHoverModel = labelHoverModel.getModel('textStyle');
-
-	                var rect = new graphic.Rect({
-	                    shape: {
-	                        x: layout.x,
-	                        y: layout.y,
-	                        width: node.getLayout().dx,
-	                        height: node.getLayout().dy
-	                    },
-	                    style: {
-	                        // Get formatted label in label.normal option. Use node id if it is not specified
-	                        text: labelModel.get('show')
-	                            ? seriesModel.getFormattedLabel(node.dataIndex, 'normal') || node.id
-	                            // Use empty string to hide the label
-	                            : '',
-	                        textFont: textStyleModel.getFont(),
-	                        textFill: textStyleModel.getTextColor(),
-	                        textPosition: labelModel.get('position')
-	                    }
-	                });
-
-	                rect.setStyle(zrUtil.defaults(
-	                    {
-	                        fill: node.getVisual('color')
-	                    },
-	                    itemModel.getModel('itemStyle.normal').getItemStyle()
-	                ));
-
-	                graphic.setHoverStyle(rect, zrUtil.extend(
-	                    node.getModel('itemStyle.emphasis'),
-	                    {
-	                        text: labelHoverModel.get('show')
-	                            ? seriesModel.getFormattedLabel(node.dataIndex, 'emphasis') || node.id
-	                            : '',
-	                        textFont: textStyleHoverModel.getFont(),
-	                        textFill: textStyleHoverModel.getTextColor(),
-	                        textPosition: labelHoverModel.get('position')
-	                    }
-	                ));
-
-	                group.add(rect);
-
-	                nodeData.setItemGraphicEl(node.dataIndex, rect);
-
-	                rect.dataType = 'node';
-	            });
 
 	            // generate a bezire Curve for each edge
 	            graph.eachEdge(function (edge) {
@@ -43368,7 +43486,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    case 'target':
 	                        curve.style.fill = edge.node2.getVisual('color');
 	                        break;
-	                    default:
 	                }
 
 	                graphic.setHoverStyle(curve, edge.getModel('lineStyle.emphasis').getItemStyle());
@@ -43377,16 +43494,73 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	                edgeData.setItemGraphicEl(edge.dataIndex, curve);
 	            });
+
+	            // generate a rect  for each node
+	            graph.eachNode(function (node) {
+	                var layout = node.getLayout();
+	                var itemModel = node.getModel();
+	                var labelModel = itemModel.getModel('label.normal');
+	                var textStyleModel = labelModel.getModel('textStyle');
+	                var labelHoverModel = itemModel.getModel('label.emphasis');
+	                var textStyleHoverModel = labelHoverModel.getModel('textStyle');
+
+	                var rect = new graphic.Rect({
+	                    shape: {
+	                        x: layout.x,
+	                        y: layout.y,
+	                        width: node.getLayout().dx,
+	                        height: node.getLayout().dy
+	                    },
+	                    style: {
+	                        // Get formatted label in label.normal option
+	                        //  Use node id if it is not specified
+	                        text: labelModel.get('show')
+	                            ? seriesModel.getFormattedLabel(node.dataIndex, 'normal') || node.id
+	                            // Use empty string to hide the label
+	                            : '',
+	                        textFont: textStyleModel.getFont(),
+	                        textFill: textStyleModel.getTextColor(),
+	                        textPosition: labelModel.get('position')
+	                    }
+	                });
+
+	                rect.setStyle(zrUtil.defaults(
+	                    {
+	                        fill: node.getVisual('color')
+	                    },
+	                    itemModel.getModel('itemStyle.normal').getItemStyle()
+	                ));
+
+	                graphic.setHoverStyle(rect, zrUtil.extend(
+	                    node.getModel('itemStyle.emphasis'),
+	                    {
+	                        text: labelHoverModel.get('show')
+	                            ? seriesModel.getFormattedLabel(node.dataIndex, 'emphasis') || node.id
+	                            : '',
+	                        textFont: textStyleHoverModel.getFont(),
+	                        textFill: textStyleHoverModel.getTextColor(),
+	                        textPosition: labelHoverModel.get('position')
+	                    }
+	                ));
+
+	                group.add(rect);
+
+	                nodeData.setItemGraphicEl(node.dataIndex, rect);
+
+	                rect.dataType = 'node';
+	            });
+
 	            if (!this._data && seriesModel.get('animation')) {
 	                group.setClipPath(createGridClipShape(group.getBoundingRect(), seriesModel, function () {
 	                    group.removeClipPath();
 	                }));
 	            }
+
 	            this._data = seriesModel.getData();
 	        }
 	    });
 
-	    //add animation to the view
+	    // add animation to the view
 	    function createGridClipShape(rect, seriesModel, cb) {
 	        var rectEl = new graphic.Rect({
 	            shape: {
@@ -43407,11 +43581,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 
+
 /***/ },
 /* 241 */
 /***/ function(module, exports, __webpack_require__) {
 
-	
+	/**
+	 * @file The layout algorithm of sankey view
+	 * @author  Deqing Li(annong035@gmail.com)
+	 */
+
 
 	    var layout = __webpack_require__(21);
 	    var nest = __webpack_require__(242);
@@ -43450,7 +43629,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 
 	    /**
-	     * get the layout position of the whole view.
+	     * Get the layout position of the whole view
+	     *
+	     * @param {module:echarts/model/Series} seriesModel  the model object of sankey series
+	     * @param {module:echarts/ExtensionAPI} api  provide the API list that the developer can call
+	     * @return {module:zrender/core/BoundingRect}  size of rect to draw the sankey view
 	     */
 	    function getViewRect(seriesModel, api) {
 	        return layout.getLayoutRect(
@@ -43468,8 +43651,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * compute the value of each node by summing the associated edge's value.
-	     * @param {module:echarts/data/Graph~Node} nodes
+	     * Compute the value of each node by summing the associated edge's value
+	     *
+	     * @param {module:echarts/data/Graph~Node} nodes  node of sankey view
 	     */
 	    function computeNodeValues(nodes) {
 	        zrUtil.each(nodes, function (node) {
@@ -43481,10 +43665,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * compute the x-position for each node.
-	     * @param {module:echarts/data/Graph~Node} nodes
-	     * @param  {number} nodeWidth
-	     * @param  {number} width
+	     * Compute the x-position for each node
+	     *
+	     * @param {module:echarts/data/Graph~Node} nodes  node of sankey view
+	     * @param  {number} nodeWidth  the dx of the node
+	     * @param  {number} width  the whole width of the area to draw the view
 	     */
 	    function computeNodeBreadths(nodes, nodeWidth, width) {
 	        var remainNodes = nodes;
@@ -43494,12 +43679,10 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        while (remainNodes.length) {
 	            nextNode = [];
-
 	            for (var i = 0, len = remainNodes.length; i < len; i++) {
 	                var node = remainNodes[i];
 	                node.setLayout({x: x}, true);
 	                node.setLayout({dx: nodeWidth}, true);
-
 	                for (var j = 0, lenj = node.outEdges.length; j < lenj; j++) {
 	                    nextNode.push(node.outEdges[j].node2);
 	                }
@@ -43515,38 +43698,43 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * all the node without outEgdes are assigned maximum breadth and
-	     * be aligned in the last column.
-	     * @param {module:echarts/data/Graph~Node} nodes
-	     * @param {number} x
+	     * All the node without outEgdes are assigned maximum x-position and
+	     *     be aligned in the last column.
+	     *
+	     * @param {module:echarts/data/Graph~Node} nodes  node of sankey view
+	     * @param {number} x  value (x-1) use to assign to node without outEdges
+	     *     as x-position
 	     */
 	    function moveSinksRight(nodes, x) {
 	        zrUtil.each(nodes, function (node) {
-	            if(!node.outEdges.length) {
-	                node.setLayout({x: x-1}, true);
+	            if (!node.outEdges.length) {
+	                node.setLayout({x: x - 1}, true);
 	            }
 	        });
 	    }
 
 	    /**
-	     * scale node x-position to the width.
-	     * @param {module:echarts/data/Graph~Node} nodes
-	     * @param {number} kx
+	     * Scale node x-position to the width
+	     *
+	     * @param {module:echarts/data/Graph~Node} nodes  node of sankey view
+	     * @param {number} kx   multiple used to scale nodes
 	     */
 	    function scaleNodeBreadths(nodes, kx) {
-	        zrUtil.each(nodes, function(node) {
+	        zrUtil.each(nodes, function (node) {
 	            var nodeX = node.getLayout().x * kx;
 	            node.setLayout({x: nodeX}, true);
 	        });
 	    }
 
 	    /**
-	     * using Gauss-Seidel iterations method to compute the node depth(y-position).
-	     * @param {module:echarts/data/Graph~Node} nodes
-	     * @param {module:echarts/data/Graph~Edge} edges
-	     * @param {number} height
-	     * @param {numbber} nodeGap
-	     * @param {number} iterations
+	     * Using Gauss-Seidel iterations method to compute the node depth(y-position)
+	     *
+	     * @param {module:echarts/data/Graph~Node} nodes  node of sankey view
+	     * @param {module:echarts/data/Graph~Edge} edges  edge of sankey view
+	     * @param {number} height  the whole height of the area to draw the view
+	     * @param {numbber} nodeGap  the vertical distance between two nodes
+	     *     in the same column.
+	     * @param {number} iterations  the number of iterations for the algorithm
 	     */
 	    function computeNodeDepths(nodes, edges, height, nodeGap, iterations) {
 	        var nodesByBreadth = nest()
@@ -43563,6 +43751,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	        resolveCollisions(nodesByBreadth, nodeGap, height);
 
 	        for (var alpha = 1; iterations > 0; iterations--) {
+	            // 0.99 is a experience parameter, ensure that each iterations of
+	            // changes as small as possible.
 	            alpha *= 0.99;
 	            relaxRightToLeft(nodesByBreadth, alpha);
 	            resolveCollisions(nodesByBreadth, nodeGap, height);
@@ -43572,12 +43762,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * compute the original y-position for each node.
-	     * @param {module:echarts/data/Graph~Node} nodes
+	     * Compute the original y-position for each node
+	     *
+	     * @param {module:echarts/data/Graph~Node} nodes  node of sankey view
 	     * @param {Array.<Array.<module:echarts/data/Graph~Node>>} nodesByBreadth
-	     * @param {module:echarts/data/Graph~Edge} edges
-	     * @param {number} height
-	     * @param {number} nodeGap
+	     *     group by the array of all sankey nodes based on the nodes x-position.
+	     * @param {module:echarts/data/Graph~Edge} edges  edge of sankey view
+	     * @param {number} height  the whole height of the area to draw the view
+	     * @param {number} nodeGap  the vertical distance between two nodes
 	     */
 	    function initializeNodeDepth(nodes, nodesByBreadth, edges, height, nodeGap) {
 	        var kyArray = [];
@@ -43587,9 +43779,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	            zrUtil.each(nodes, function (node) {
 	                sum += node.getLayout().value;
 	            });
-	            var ky = (height - (n-1) * nodeGap) / sum;
+	            var ky = (height - (n - 1) * nodeGap) / sum;
 	            kyArray.push(ky);
 	        });
+
 	        kyArray.sort(function (a, b) {
 	            return a - b;
 	        });
@@ -43610,10 +43803,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * resolve the collision of initialized depth.
+	     * Resolve the collision of initialized depth (y-position)
+	     *
 	     * @param {Array.<Array.<module:echarts/data/Graph~Node>>} nodesByBreadth
-	     * @param {number} nodeGap
-	     * @param {number} height
+	     *     group by the array of all sankey nodes based on the nodes x-position.
+	     * @param {number} nodeGap  the vertical distance between two nodes
+	     * @param {number} height  the whole height of the area to draw the view
 	     */
 	    function resolveCollisions(nodesByBreadth, nodeGap, height) {
 	        zrUtil.each(nodesByBreadth, function (nodes) {
@@ -43628,17 +43823,17 @@ return /******/ (function(modules) { // webpackBootstrap
 	            for (i = 0; i < n; i++) {
 	                node = nodes[i];
 	                dy = y0 - node.getLayout().y;
-	                if(dy > 0) {
+	                if (dy > 0) {
 	                    var nodeY = node.getLayout().y + dy;
 	                    node.setLayout({y: nodeY}, true);
 	                }
 	                y0 = node.getLayout().y + node.getLayout().dy + nodeGap;
 	            }
 
-	            // if the bottommost node goes outside the biunds, push it back up
+	            // if the bottommost node goes outside the bounds, push it back up
 	            dy = y0 - nodeGap - height;
 	            if (dy > 0) {
-	                var nodeY = node.getLayout().y -dy;
+	                var nodeY = node.getLayout().y - dy;
 	                node.setLayout({y: nodeY}, true);
 	                y0 = node.getLayout().y;
 	                for (i = n - 2; i >= 0; --i) {
@@ -43655,9 +43850,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * change the y-position of the nodes, except most the right side nodes.
+	     * Change the y-position of the nodes, except most the right side nodes
+	     *
 	     * @param {Array.<Array.<module:echarts/data/Graph~Node>>} nodesByBreadth
-	     * @param {number} alpha
+	     *     group by the array of all sankey nodes based on the node x-position.
+	     * @param {number} alpha  parameter used to adjust the nodes y-position
 	     */
 	    function relaxRightToLeft(nodesByBreadth, alpha) {
 	        zrUtil.each(nodesByBreadth.slice().reverse(), function (nodes) {
@@ -43676,9 +43873,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * change the y-position of the nodes, except most the left side nodes.
+	     * Change the y-position of the nodes, except most the left side nodes
+	     *
 	     * @param {Array.<Array.<module:echarts/data/Graph~Node>>} nodesByBreadth
-	     * @param {number} alpha
+	     *     group by the array of all sankey nodes based on the node x-position.
+	     * @param {number} alpha  parameter used to adjust the nodes y-position
 	     */
 	    function relaxLeftToRight(nodesByBreadth, alpha) {
 	        zrUtil.each(nodesByBreadth, function (nodes) {
@@ -43697,8 +43896,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    /**
-	     * compute the depth(y-position) of each edge.
-	     * @param {module:echarts/data/Graph~Node} nodes
+	     * Compute the depth(y-position) of each edge
+	     *
+	     * @param {module:echarts/data/Graph~Node} nodes  node of sankey view
 	     */
 	    function computeEdgeDepths(nodes) {
 	        zrUtil.each(nodes, function (node) {
@@ -43728,27 +43928,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    function sum(array, f) {
-	        var s = 0;
-	        var n = array.length;
-	        var a;
+	        var sum = 0;
+	        var len = array.length;
 	        var i = -1;
-	        if (arguments.length === 1) {
-	            while (++i < n) {
-	                a = +array[i];
-	                if (!isNaN(a)) {
-	                    s += a;
-	                }
+	        while (++i < len) {
+	            var value = +f.call(array, array[i], i);
+	            if (!isNaN(value)) {
+	                sum += value;
 	            }
 	        }
-	        else {
-	            while (++i < n) {
-	                a = +f.call(array, array[i], i);
-	                if(!isNaN(a)) {
-	                    s += a;
-	                }
-	            }
-	        }
-	        return s;
+	        return sum;
 	    }
 
 	    function center(node) {
@@ -43760,7 +43949,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    function ascending(a, b) {
-	        return a < b ? -1 : a > b ? 1 : a == b ? 0 : NaN;
+	        return a < b ? -1 : a > b ? 1 : a === b ? 0 : NaN;
 	    }
 
 	    function getEdgeValue(edge) {
@@ -43884,7 +44073,11 @@ return /******/ (function(modules) { // webpackBootstrap
 /* 243 */
 /***/ function(module, exports, __webpack_require__) {
 
-	
+	/**
+	 * @file Visual encoding for sankey view
+	 * @author  Deqing Li(annong035@gmail.com)
+	 */
+
 
 	    var VisualMapping = __webpack_require__(192);
 
@@ -43918,8 +44111,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	                }
 	            });
 
-	        }) ;
+	        });
 	    };
+
 
 
 /***/ },
@@ -47166,6 +47360,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var itemIcon = itemModel.get('icon');
 
 	            var tooltipModel = itemModel.getModel('tooltip');
+	            var legendGlobalTooltipModel = tooltipModel.parentModel;
 
 	            // Use user given icon first
 	            legendSymbolType = itemIcon || legendSymbolType;
@@ -47223,7 +47418,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                tooltip: tooltipModel.get('show') ? zrUtil.extend({
 	                    content: name,
 	                    // Defaul formatter
-	                    formatter: function () {
+	                    formatter: legendGlobalTooltipModel.get('formatter', true) || function () {
 	                        return name;
 	                    },
 	                    formatterParams: {
@@ -53498,14 +53693,17 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var ecModel = this.ecModel;
 
 	            ecModel.eachSeries(function (seriesModel) {
-	                var dimName = this._dimName;
-	                var axisModel = ecModel.queryComponents({
-	                    mainType: dimName + 'Axis',
-	                    index: seriesModel.get(dimName + 'AxisIndex'),
-	                    id: seriesModel.get(dimName + 'AxisId')
-	                })[0];
-	                if (this._axisIndex === (axisModel && axisModel.componentIndex)) {
-	                    seriesModels.push(seriesModel);
+	                var coordSysName = seriesModel.get('coordinateSystem');
+	                if (coordSysName === 'cartesian2d' || coordSysName === 'polar') {
+	                    var dimName = this._dimName;
+	                    var axisModel = ecModel.queryComponents({
+	                        mainType: dimName + 'Axis',
+	                        index: seriesModel.get(dimName + 'AxisIndex'),
+	                        id: seriesModel.get(dimName + 'AxisId')
+	                    })[0];
+	                    if (this._axisIndex === (axisModel && axisModel.componentIndex)) {
+	                        seriesModels.push(seriesModel);
+	                    }
 	                }
 	            }, this);
 
@@ -61427,13 +61625,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	                var categoryAxis = coordSys.getAxesByScale('ordinal')[0];
 	                if (categoryAxis) {
 	                    var axisDim = categoryAxis.dim;
-	                    var axisIndex = seriesModel.get(axisDim + 'AxisIndex');
-	                    var axisKey = axisDim + 'Axis';
-	                    newOption[axisKey] = newOption[axisKey] || [];
+	                    var axisType = axisDim + 'Axis';
+	                    var axisModel = ecModel.queryComponents({
+	                        mainType: axisType,
+	                        index: seriesModel.get(name + 'Index'),
+	                        id: seriesModel.get(name + 'Id')
+	                    })[0];
+	                    var axisIndex = axisModel.componentIndex;
+
+	                    newOption[axisType] = newOption[axisType] || [];
 	                    for (var i = 0; i <= axisIndex; i++) {
-	                        newOption[axisKey][axisIndex] = newOption[axisKey][axisIndex] || {};
+	                        newOption[axisType][axisIndex] = newOption[axisType][axisIndex] || {};
 	                    }
-	                    newOption[axisKey][axisIndex].boundaryGap = type === 'bar' ? true : false;
+	                    newOption[axisType][axisIndex].boundaryGap = type === 'bar' ? true : false;
 	                }
 	            }
 	        };
