@@ -186,6 +186,12 @@ define(function(require) {
             tooltip: {
                 show: false
             }
+            
+            // page 기능 사용 여부 및 페이지 아이템 갯수 지정
+            // 0 : 페이지 기능 사용 안함
+            // - add by eltriny
+            , pageItems : 0
+            , page		: 1
         }
     });
 

@@ -329,6 +329,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	    echartsProto.setShowDataZoom = function(flag){
 			this[IN_MAIN_PROCESS] = true;
 			this._model.option.dataZoom[0].show = flag;
+			if( 0 == this._model.option.dataZoom[0].y ) {
+				// 상단에 위치한 경우
+				if( flag ) {
+					this._model.option.grid[0].top = this._tempDataZoomHeight;
+				}
+				else {
+					this._tempDataZoomHeight = this._model.option.grid[0].top;
+					this._model.option.grid[0].top = '1%';
+				}
+			}
 	        updateMethods.prepareAndUpdate.call(this);
 	        this._zr.refreshImmediately();
 	        this[IN_MAIN_PROCESS] = false;

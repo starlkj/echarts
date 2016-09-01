@@ -342,6 +342,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	    echartsProto.setShowDataZoom = function(flag){
 			this[IN_MAIN_PROCESS] = true;
 			this._model.option.dataZoom[0].show = flag;
+			if( 0 == this._model.option.dataZoom[0].y ) {
+				// 상단에 위치한 경우
+				if( flag ) {
+					this._model.option.grid[0].top = this._tempDataZoomHeight;
+				}
+				else {
+					this._tempDataZoomHeight = this._model.option.grid[0].top;
+					this._model.option.grid[0].top = '1%';
+				}
+			}
 	        updateMethods.prepareAndUpdate.call(this);
 	        this._zr.refreshImmediately();
 	        this[IN_MAIN_PROCESS] = false;
@@ -31930,6 +31940,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	            tooltip: {
 	                show: false
 	            }
+	            
+	            // page 기능 사용 여부 및 페이지 아이템 갯수 지정
+	            // 0 : 페이지 기능 사용 안함
+	            // - add by eltriny
+	            , pageItems : 0
+	            , page		: 1
 	        }
 	    });
 
@@ -32066,6 +32082,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	            });
 	        }
 	    }
+	    
+	    // Group 설정 -- this 설정 필요
+	    function setGroup() {
+	    	var pageItems = this.pageList[ this.page - 1 ];
+	    	for( var idx = 0, nMax = pageItems.length; idx < nMax; idx++ ) {
+	    		this.group.add( pageItems[ idx ] );
+	    	}    	
+	    }	// Method - setGroup
 
 	    module.exports = __webpack_require__(1).extendComponentView({
 
@@ -32078,10 +32102,23 @@ return /******/ (function(modules) { // webpackBootstrap
 	        render: function (legendModel, ecModel, api) {
 	            var group = this.group;
 	            group.removeAll();
+	            
+	            console.info( 'render legend' );
 
 	            if (!legendModel.get('show')) {
 	                return;
 	            }
+	            
+	            // - add by eltriny
+	            this.pageItems 	= legendModel.get( 'pageItems' );
+	            this.usePage	= false; 
+	            this.pageList  	= null;
+	            this.page		= legendModel.get( 'page' );
+	            if( 0 != this.pageItems ) {
+	            	this.usePage	= true;
+	            	this.pageList 	= [];
+	            }
+	            // - add by eltriny
 
 	            var selectMode = legendModel.get('selectedMode');
 	            var itemAlign = legendModel.get('align');
@@ -32104,7 +32141,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    }));
 	                    return;
 	                }
-
+	                
 	                var seriesModel = ecModel.getSeriesByName(name)[0];
 
 	                if (legendDrawedMap[name]) {
@@ -32181,11 +32218,83 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    }
 	                }
 	            }, this);
+	            
+	            // - add by eltriny
+	            if( this.usePage ) {
+
+	            	var _this = this;
+	                var btnPrevPage = new graphic.Rect({
+	                	shape	: { x : 0, y : 0, width : 15, height : 15 },
+	                    z2		: 0
+	                });
+	                var pageTxt = new graphic.Text({
+	                    style: {
+	                        text	: this.page + ' / ' + this.pageList.length,
+	                        x		: 20,
+	                        y		: 10,
+	                        fill	: '#000000',
+	                        textVerticalAlign: 'middle'
+	                    },
+	                    silent : true
+	                });
+	                var btnNextPage = new graphic.Rect({
+	                    shape	: { x : 50, y : 0, width : 15, height : 15 },
+	                    z2		: 0
+	                });
+	                
+	                var itemGroup = new graphic.Group( { id : 'pager' } );
+	                itemGroup.add( btnPrevPage );
+	                itemGroup.add( pageTxt );
+	                itemGroup.add( btnNextPage );
+	                group.add( itemGroup );                
+	                
+	                btnPrevPage.on( 
+	                	'click', 
+	                	curry( 
+	                		function() {
+	                			
+	                			// 페이지 이동
+	                			( 1 < _this.page ) && ( _this.page-- );
+	                			
+	                			// 페이지 정보 저장
+	                			legendModel.mergeOption( { 'page' : _this.page } );
+	                			
+	                			// 변경 적용			
+	                			_this.render( legendModel, ecModel, api );
+	                	
+			                }, api
+			            )
+			        );
+	                btnNextPage.on(
+	                	'click', 
+	                	curry( 
+	                		function() {
+	                			
+	                			// 페이지 이동
+	                			( _this.pageList.length > _this.page ) && ( _this.page++ );
+	                			
+	                			// 페이지 정보 저장
+	                			legendModel.mergeOption( { 'page' : _this.page } );                			
+	                			
+	                			// 변경 적용			
+	                			_this.render( legendModel, ecModel, api );
+	                	
+			                }, api
+			            )
+			        );                
+	                // graphic.subPixelOptimizeRect( rect );
+	                
+	                // append legend
+	            	setGroup.apply( this );                
+	            	
+	            }
+	            // - add by eltriny
 
 	            listComponentHelper.layout(group, legendModel, api);
 	            // Render background after group is layout
 	            // FIXME
 	            listComponentHelper.addBackground(group, legendModel);
+
 	        },
 
 	        _createItem: function (
@@ -32282,9 +32391,23 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            hitRect.silent = !selectMode;
 
-
-
-	            this.group.add(itemGroup);
+	            // - add by eltriny
+	            if( this.usePage ) {
+	            	var nPages = this.pageList.length;
+	            	if( 0 == nPages || this.pageItems == this.pageList[ nPages - 1 ].length ) {
+	            		var currentPage = [];
+	            		currentPage.push( itemGroup );
+	            		this.pageList.push( currentPage );
+	            	}  
+	            	else {
+	            		var currentPage = this.pageList[ nPages - 1 ];
+	            		currentPage.push( itemGroup );
+	            	}
+	            }
+	            else {
+	            	this.group.add( itemGroup );
+	            }
+	            // - add by eltriny
 
 	            graphic.setHoverStyle(itemGroup);
 
