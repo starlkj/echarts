@@ -47390,6 +47390,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    z2		: 0
 	                });
 	                */
+	            	var nTotalPage = this.pageList.length;
 	                var btnPrevPage = new graphic.Image({
 	                	style	: { 
 	                		x : 0, 
@@ -47401,9 +47402,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	                });
 	                var pageTxt = new graphic.Text({
 	                    style: {
-	                        text	: this.page + ' / ' + this.pageList.length,
+	                        text	: this.page + ' / ' + nTotalPage,
 	                        x		: 30,
 	                        y		: 10,
+	                        width	: ( ( 10 > nTotalPage ) ? 60 : 40 ),
 	                        fill	: '#000000',
 	                        textVerticalAlign: 'middle'
 	                    },
