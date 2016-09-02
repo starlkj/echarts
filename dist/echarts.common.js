@@ -32250,7 +32250,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                        text	: this.page + ' / ' + nTotalPage,
 	                        x		: 30,
 	                        y		: 10,
-	                        width	: ( ( 10 > nTotalPage ) ? 60 : 40 ),
+	                        width	: ( ( 10 > nTotalPage ) ? 80 : 40 ),
 	                        fill	: '#000000',
 	                        textVerticalAlign: 'middle'
 	                    },
