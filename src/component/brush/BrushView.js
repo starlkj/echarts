@@ -74,6 +74,19 @@ define(function (require) {
         _onBrush: function (areas, opt) {
             var modelId = this.model.id;
             
+            // add by eltriny
+            // Brush Drag End 시 이벤트 발생
+            if( opt.isDragEnd ) {            	
+            	this.api.dispatchAction( 
+            		{ 
+            			type	: 'brushDragEnd',
+            			brushId	: modelId,
+                        areas	: zrUtil.clone(areas),
+                        $from	: modelId
+            		} 
+            	);
+            }
+            
             if( opt.isEnd && opt.removeOnClick ) {
             	this.api.dispatchAction( { type: 'enableTip' } );
             }

@@ -42213,7 +42213,8 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        controller.trigger('brush', areas, {
 	            isEnd: !!opt.isEnd,
-	            removeOnClick: !!opt.removeOnClick
+	            removeOnClick: !!opt.removeOnClick,
+	            isDragEnd : opt.isDragEnd			// add by eltriny
 	        });
 	    }
 
@@ -42542,7 +42543,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var mouseHandlers = {
 
 	        mousedown: function (e) {
-	            if (this._dragging) {
+	        	
+	        	// console.info( 'BrushController mousedown' );
+	        	// console.info( e );
+	        	
+	            if( this._dragging ) {
 	                // In case some browser do not support globalOut,
 	                // and release mose out side the browser.
 	                handleDragEnd.call(this, e);
@@ -42560,15 +42565,22 @@ return /******/ (function(modules) { // webpackBootstrap
 	                if (panel) {
 	                    this._dragging = true;
 	                    this._track = [this.group.transformCoordToLocal(x, y)];
+	                    
+	                    // console.info( 'BrushController mousedown - _dragging true' );
 	                }
 	            }
 	        },
 
 	        mousemove: function (e) {
+	        	
+	        	// console.info( 'BrushController mousemove' );
+	        	
 	            // set Cursor
 	            resetCursor(this, e);
 
 	            if (this._dragging) {
+	            	
+	            	this._isMouseMove = true;
 
 	                preventDefault(e);
 
@@ -42586,18 +42598,32 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 
 	    function handleDragEnd(e) {
+	    	
+	    	// console.info( 'BrushController mouseup' );
+	    	
 	        if (this._dragging) {
 
 	            preventDefault(e);
+	            
+	            // console.info( 'BrushController mouseup - _dragging' );
 
 	            var eventParams = updateCoverByMouse(this, e, true);
 
 	            this._dragging = false;
 	            this._track = [];
 	            this._creatingCover = null;
-
+	            
 	            // trigger event shoule be at final, after procedure will be nested.
-	            eventParams && trigger(this, eventParams);
+	            // eventParams && trigger(this, eventParams);
+	            
+	            // edit by eltriny
+	            if( eventParams ) {
+	            	this._isMouseMove && ( eventParams.isDragEnd = true );             	
+	            	trigger(this, eventParams);
+	            }
+	            
+	            // add by eltriny
+	            this._isMouseMove = false;
 	        }
 	    }
 
@@ -47263,8 +47289,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	        render: function (legendModel, ecModel, api) {
 	            var group = this.group;
 	            group.removeAll();
-	            
-	            console.info( 'render legend' );
 
 	            if (!legendModel.get('show')) {
 	                return;
@@ -52633,6 +52657,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	        _onBrush: function (areas, opt) {
 	            var modelId = this.model.id;
 	            
+	            // add by eltriny
+	            // Brush Drag End 시 이벤트 발생
+	            if( opt.isDragEnd ) {            	
+	            	this.api.dispatchAction( 
+	            		{ 
+	            			type	: 'brushDragEnd',
+	            			brushId	: modelId,
+	                        areas	: zrUtil.clone(areas),
+	                        $from	: modelId
+	            		} 
+	            	);
+	            }
+	            
 	            if( opt.isEnd && opt.removeOnClick ) {
 	            	this.api.dispatchAction( { type: 'enableTip' } );
 	            }
@@ -52719,6 +52756,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	         {type: 'brushSelect', event: 'brushSelected', update: 'none'},
 	        function () {}
 	    );
+	    
+	    // add by eltriny
+	    echarts.registerAction(
+	    	{type: 'brushDragEnd', event: 'brushDragEnd', update: 'none'},
+	       function () {}
+	   );
 
 
 /***/ },

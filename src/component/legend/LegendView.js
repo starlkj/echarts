@@ -63,8 +63,6 @@ define(function (require) {
         render: function (legendModel, ecModel, api) {
             var group = this.group;
             group.removeAll();
-            
-            console.info( 'render legend' );
 
             if (!legendModel.get('show')) {
                 return;

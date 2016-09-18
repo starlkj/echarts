@@ -471,7 +471,8 @@ define(function (require) {
 
         controller.trigger('brush', areas, {
             isEnd: !!opt.isEnd,
-            removeOnClick: !!opt.removeOnClick
+            removeOnClick: !!opt.removeOnClick,
+            isDragEnd : opt.isDragEnd			// add by eltriny
         });
     }
 
@@ -827,6 +828,8 @@ define(function (require) {
             resetCursor(this, e);
 
             if (this._dragging) {
+            	
+            	this._isMouseMove = true;
 
                 preventDefault(e);
 
@@ -853,9 +856,18 @@ define(function (require) {
             this._dragging = false;
             this._track = [];
             this._creatingCover = null;
-
+            
             // trigger event shoule be at final, after procedure will be nested.
-            eventParams && trigger(this, eventParams);
+            // eventParams && trigger(this, eventParams);
+            
+            // edit by eltriny
+            if( eventParams ) {
+            	this._isMouseMove && ( eventParams.isDragEnd = true );             	
+            	trigger(this, eventParams);
+            }
+            
+            // add by eltriny
+            this._isMouseMove = false;
         }
     }
 
