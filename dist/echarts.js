@@ -42543,11 +42543,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var mouseHandlers = {
 
 	        mousedown: function (e) {
-	        	
-	        	// console.info( 'BrushController mousedown' );
-	        	// console.info( e );
-	        	
-	            if( this._dragging ) {
+	            if (this._dragging) {
 	                // In case some browser do not support globalOut,
 	                // and release mose out side the browser.
 	                handleDragEnd.call(this, e);
@@ -42565,16 +42561,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	                if (panel) {
 	                    this._dragging = true;
 	                    this._track = [this.group.transformCoordToLocal(x, y)];
-	                    
-	                    // console.info( 'BrushController mousedown - _dragging true' );
 	                }
 	            }
 	        },
 
 	        mousemove: function (e) {
-	        	
-	        	// console.info( 'BrushController mousemove' );
-	        	
 	            // set Cursor
 	            resetCursor(this, e);
 
@@ -42598,14 +42589,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 
 	    function handleDragEnd(e) {
-	    	
-	    	// console.info( 'BrushController mouseup' );
-	    	
 	        if (this._dragging) {
 
 	            preventDefault(e);
-	            
-	            // console.info( 'BrushController mouseup - _dragging' );
 
 	            var eventParams = updateCoverByMouse(this, e, true);
 
@@ -47408,13 +47394,25 @@ return /******/ (function(modules) { // webpackBootstrap
 	            if( this.usePage ) {
 
 	            	var _this = this;
-	            	/*
-	                var btnPrevPage = new graphic.Rect({
-	                	shape	: { x : 0, y : 0, width : 15, height : 15 },
-	                    z2		: 0
-	                });
-	                */
 	            	var nTotalPage = this.pageList.length;
+	            	
+	            	// 숫자 자릿수 계산
+	            	var tempCurrPage 	= this.page;            	
+	            	var nCurrPageWidth 	= 7;
+	            	while( 9 < tempCurrPage ) {
+	            		nCurrPageWidth += 7;
+	            		tempCurrPage = tempCurrPage / 10;
+	            	}
+	            	
+	            	var tempTotalPage	= nTotalPage;
+	            	var nTotalPageWidth	= 7;
+	            	while( 9 < tempTotalPage ) {
+	            		nTotalPageWidth += 7;
+	            		tempTotalPage = tempTotalPage / 10;
+	            	}
+	            	
+	            	var nPageTxtWidth = nCurrPageWidth + nTotalPageWidth + 26;
+	            	
 	                var btnPrevPage = new graphic.Image({
 	                	style	: { 
 	                		x : 0, 
@@ -47428,22 +47426,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    style: {
 	                        text	: this.page + ' / ' + nTotalPage,
 	                        x		: 30,
-	                        y		: 10,
-	                        width	: ( ( 10 > nTotalPage ) ? 80 : 40 ),
+	                        y		: 12,
+	                        width	: nPageTxtWidth,
 	                        fill	: '#000000',
 	                        textVerticalAlign: 'middle'
 	                    },
 	                    silent 	: true
 	                });
-	                /*
-	                var btnNextPage = new graphic.Rect({
-	                    shape	: { x : 50, y : 0, width : 15, height : 15 },
-	                    z2		: 0
-	                });
-	                 */
 	                var btnNextPage = new graphic.Image({
 	                	style	: { 
-	                		x : 60, 
+	                		x : nPageTxtWidth + 20, 
 	                		y : 0, 
 	                		width : 20, 
 	                		height : 20, 

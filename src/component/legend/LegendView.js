@@ -182,13 +182,25 @@ define(function (require) {
             if( this.usePage ) {
 
             	var _this = this;
-            	/*
-                var btnPrevPage = new graphic.Rect({
-                	shape	: { x : 0, y : 0, width : 15, height : 15 },
-                    z2		: 0
-                });
-                */
             	var nTotalPage = this.pageList.length;
+            	
+            	// 숫자 자릿수 계산
+            	var tempCurrPage 	= this.page;            	
+            	var nCurrPageWidth 	= 7;
+            	while( 9 < tempCurrPage ) {
+            		nCurrPageWidth += 7;
+            		tempCurrPage = tempCurrPage / 10;
+            	}
+            	
+            	var tempTotalPage	= nTotalPage;
+            	var nTotalPageWidth	= 7;
+            	while( 9 < tempTotalPage ) {
+            		nTotalPageWidth += 7;
+            		tempTotalPage = tempTotalPage / 10;
+            	}
+            	
+            	var nPageTxtWidth = nCurrPageWidth + nTotalPageWidth + 26;
+            	
                 var btnPrevPage = new graphic.Image({
                 	style	: { 
                 		x : 0, 
@@ -202,22 +214,16 @@ define(function (require) {
                     style: {
                         text	: this.page + ' / ' + nTotalPage,
                         x		: 30,
-                        y		: 10,
-                        width	: ( ( 10 > nTotalPage ) ? 80 : 40 ),
+                        y		: 12,
+                        width	: nPageTxtWidth,
                         fill	: '#000000',
                         textVerticalAlign: 'middle'
                     },
                     silent 	: true
                 });
-                /*
-                var btnNextPage = new graphic.Rect({
-                    shape	: { x : 50, y : 0, width : 15, height : 15 },
-                    z2		: 0
-                });
-                 */
                 var btnNextPage = new graphic.Image({
                 	style	: { 
-                		x : 60, 
+                		x : nPageTxtWidth + 20, 
                 		y : 0, 
                 		width : 20, 
                 		height : 20, 
