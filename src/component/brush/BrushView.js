@@ -34,8 +34,16 @@ define(function (require) {
              * @type {module:echarts/component/helper/BrushController}
              */
             (this._brushController = new BrushController(api.getZr()))
-                .on('brush', zrUtil.bind(this._onBrush, this))
+                .on('brush', zrUtil.bind(this._onBrush, this))                
                 .mount();
+                        
+            // add by eltriny
+            // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
+            this._brushSelectData = null;
+            
+            // add by eltriny
+            // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
+            this.api.on( 'brushSelected', zrUtil.bind( this._onBrushSelected, this ) );
         },
 
         /**
@@ -67,6 +75,14 @@ define(function (require) {
         dispose: function () {
             this._brushController.dispose();
         },
+        
+        /**
+         * @private
+         * add by eltriny
+         */
+        _onBrushSelected: function ( selectedData ) {        	
+        	this._brushSelectData = selectedData.batch;         	
+        },
 
         /**
          * @private
@@ -79,12 +95,15 @@ define(function (require) {
             if( opt.isDragEnd ) {            	
             	this.api.dispatchAction( 
             		{ 
-            			type	: 'brushDragEnd',
-            			brushId	: modelId,
-                        areas	: zrUtil.clone(areas),
-                        $from	: modelId
+            			type			: 'brushDragEnd',
+            			brushId			: modelId,
+                        areas			: zrUtil.clone(areas),
+                        $from			: modelId,
+                        brushSelectData : zrUtil.clone( this._brushSelectData )
             		} 
             	);
+            	
+            	this._brushSelectData = null;
             }
             
             if( opt.isEnd && opt.removeOnClick ) {
