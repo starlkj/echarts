@@ -20,7 +20,7 @@ define(function(require) {
          * @private
          * @type {module:echarts/component/helper/BrushController}
          */
-        (this._brushController = new BrushController(api.getZr()))
+        (this._brushController = new BrushController(api.getZr(), 'ZOOM_BRUSH' ) )
             .on('brush', zrUtil.bind(this._onBrush, this))
             .mount();
 
@@ -91,9 +91,17 @@ define(function(require) {
      * @private
      */
     proto._onBrush = function (areas, opt) {
+    	
+    	console.info( '==== DataZoom _onBrush ====' );
+    	console.info( 'areas', areas );
+    	console.info( 'opt', opt );
+    	
         if (!opt.isEnd || !areas.length) {
             return;
         }
+        
+        console.info( '=== run onBrush ===' );
+        
         var snapshot = {};
         var ecModel = this.ecModel;
 

@@ -30749,6 +30749,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	        brushMode: 'single',
 	        removeOnClick: false
 	    };
+	    
+	    // add by eltriny
+	    // BrushController Type
+	    var BRUSH_TYPE = {
+	    	SELECT : 'SELECT_BRUSH',
+	    	ZOOM   : 'ZOOM_BRUSH'
+	    };
 
 	    var baseUID = 0;
 
@@ -30766,14 +30773,22 @@ return /******/ (function(modules) { // webpackBootstrap
 	     *            }
 	     *
 	     * @param {module:zrender/zrender~ZRender} zr
+	     * @param {string} BrushController 를 생성하는 기능의 구분값 ( Add by eltriny )
 	     */
-	    function BrushController(zr) {
+	    function BrushController( zr, type ) {
 
 	        if (true) {
 	            zrUtil.assert(zr);
 	        }
 
 	        Eventful.call(this);
+	        
+	        /**
+	         * add by eltriny
+	         * 
+	         * type : SELECT_BRUSH, ZOOM_BRUSH
+	         */
+	        this._type = type;
 
 	        /**
 	         * @type {module:zrender/zrender~ZRender}
@@ -31171,7 +31186,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	        controller.trigger('brush', areas, {
 	            isEnd: !!opt.isEnd,
 	            removeOnClick: !!opt.removeOnClick,
-	            isDragEnd : opt.isDragEnd			// add by eltriny
+	            isDragEnd : opt.isDragEnd,			// add by eltriny
+	            isClick   : opt.isClick				// add by eltriny
 	        });
 	    }
 
@@ -31441,9 +31457,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	        return cover.childOfName('main').contain(x, y);
 	    }
 
-	    function updateCoverByMouse(controller, e, isEnd) {
-	        var x = e.offsetX;
-	        var y = e.offsetY;
+	    function updateCoverByMouse(controller, evt, isEnd) {
+	        var x = evt.offsetX;
+	        var y = evt.offsetY;
 	        var creatingCover = controller._creatingCover;
 	        var panel = controller._creatingPanel;
 	        var thisBrushOption = controller._brushOption;
@@ -31544,8 +31560,63 @@ return /******/ (function(modules) { // webpackBootstrap
 	        // in tooltip, globalout should not be triggered.
 	        // globalout: handleDragEnd
 	    };
+	    
+	    // renewal by eltriny
+	    function handleDragEnd(evt) {
+	    	
+	        if (this._dragging) {
 
+	            preventDefault(evt);
+	            
+	        	var isClick 	= true;
+	        	var isDragEnd 	= false;
+	        	
+	            if( this._isMouseMove ) {
+	            	
+	            	// console.info( 'brushController - drag' );
+	            	
+	            	// 추가 파라메터 정의
+	            	isClick 	= false;
+	            	isDragEnd 	= true;
+
+	            }
+	            else {
+	            	
+	            	if( BRUSH_TYPE.ZOOM == this._type ) {
+	            		// console.info( 'brushController - click' );
+	            		
+	            		// 추가 파라메터 정의
+	            		isClick 	= true;
+	            		isDragEnd 	= false;
+	            		
+	            		// event 변경
+	            		evt.offsetX += 300;
+	            		evt.offsetY += 300;
+	            	}
+	            	
+	            }
+	            
+	            var eventParams = updateCoverByMouse(this, evt, true);
+	            
+	            this._dragging = false;
+	            this._track = [];
+	            this._creatingCover = null;
+	            
+	            // add by eltriny
+	            this._isMouseMove = false;
+	            
+	            // trigger event shoule be at final, after procedure will be nested.
+	            if( eventParams ) {
+	            	eventParams.isClick 	= isClick;
+	            	eventParams.isDragEnd 	= isDragEnd; 
+	            	trigger(this, eventParams );	
+	            }
+	        }
+	        
+	    }
+	/*
 	    function handleDragEnd(e) {
+	    	
 	        if (this._dragging) {
 
 	            preventDefault(e);
@@ -31558,18 +31629,40 @@ return /******/ (function(modules) { // webpackBootstrap
 	            
 	            // trigger event shoule be at final, after procedure will be nested.
 	            // eventParams && trigger(this, eventParams);
-	            
+
 	            // edit by eltriny
 	            if( eventParams ) {
-	            	this._isMouseMove && ( eventParams.isDragEnd = true );             	
+	            	
+	            	// console.info( 'brushController - mousemove' );            	
+	            	
+	            	// 기본값 정의
+	            	eventParams.isClick 	= false;
+	            	eventParams.isDragEnd 	= false;
+	            	
+	            	// 드래그 종료 옵션 활성 처리
+	            	if( this._isMouseMove ) {
+	            		eventParams.isDragEnd = true
+	            	}
+	            	else {
+	            		eventParams.isClick = true;
+	            	}
+	            	
+	            	// 이벤트 발생
 	            	trigger(this, eventParams);
 	            }
-	            
+	            else {
+	            	// console.info( 'brushController - click' );
+	            	trigger(this, {
+	            		isClick 	: true,
+	                	isDragEnd 	: false
+	            	});
+	            }
+
 	            // add by eltriny
 	            this._isMouseMove = false;
 	        }
 	    }
-
+	*/
 	    /**
 	     * key: brushType
 	     * @type {Object}
@@ -40032,7 +40125,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	         * @private
 	         * @type {module:echarts/component/helper/BrushController}
 	         */
-	        (this._brushController = new BrushController(api.getZr()))
+	        (this._brushController = new BrushController(api.getZr(), 'ZOOM_BRUSH' ) )
 	            .on('brush', zrUtil.bind(this._onBrush, this))
 	            .mount();
 
@@ -40103,9 +40196,17 @@ return /******/ (function(modules) { // webpackBootstrap
 	     * @private
 	     */
 	    proto._onBrush = function (areas, opt) {
+	    	
+	    	console.info( '==== DataZoom _onBrush ====' );
+	    	console.info( 'areas', areas );
+	    	console.info( 'opt', opt );
+	    	
 	        if (!opt.isEnd || !areas.length) {
 	            return;
 	        }
+	        
+	        console.info( '=== run onBrush ===' );
+	        
 	        var snapshot = {};
 	        var ecModel = this.ecModel;
 

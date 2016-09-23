@@ -33,7 +33,7 @@ define(function (require) {
              * @private
              * @type {module:echarts/component/helper/BrushController}
              */
-            (this._brushController = new BrushController(api.getZr()))
+            (this._brushController = new BrushController(api.getZr(), 'SELECT_BRUSH' ))
                 .on('brush', zrUtil.bind(this._onBrush, this))                
                 .mount();
                         
@@ -89,6 +89,11 @@ define(function (require) {
          */
         _onBrush: function (areas, opt) {
             var modelId = this.model.id;
+            
+            // add by eltriny
+            if( opt.isClick ) {
+            	return;
+            }
             
             // add by eltriny
             // Brush Drag End 시 이벤트 발생
