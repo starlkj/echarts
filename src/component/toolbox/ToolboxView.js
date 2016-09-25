@@ -13,12 +13,15 @@ define(function (require) {
         type: 'toolbox',
 
         render: function (toolboxModel, ecModel, api, payload) {
+        	
             var group = this.group;
             group.removeAll();
 
+            /*
             if (!toolboxModel.get('show')) {
-                return;
+            	return;
             }
+            */
 
             var itemSize = +toolboxModel.get('itemSize');
             var featureOpts = toolboxModel.get('feature') || {};
@@ -28,6 +31,34 @@ define(function (require) {
             zrUtil.each(featureOpts, function (opt, name) {
                 featureNames.push(name);
             });
+            
+            // move by eltriny
+            if (!toolboxModel.get('show')) {
+            	
+            	// add by eltriny - toolbox 가 hide인 상태에서도 feature 에 접근할 수 있도록 외부 오픈함
+            	for( var idx = 0, nMax = featureNames.length; idx < nMax; idx++ ) {
+            		var featureName = featureNames[ idx ];
+            		var Feature = featureManager.get(featureName);
+            		if (!Feature) {
+            			return;
+            		}
+            		var featureOpt 	 = featureOpts[featureName];
+            		var featureModel = new Model( featureOpt, toolboxModel, toolboxModel.ecModel );
+            		var feature = new Feature( featureModel, ecModel, api );
+            		features[featureName] = feature;
+            		
+            		// pseudo function
+            		featureModel.setIconStatus = function() {}
+            		
+                    if( feature.render ) {
+                        feature.render( featureModel, ecModel, api, payload );
+                    }            		
+            	}
+            	
+            	this._features = features;
+            	
+            	return;
+            }
 
             (new DataDiffer(this._featureNames || [], featureNames))
                 .add(process)

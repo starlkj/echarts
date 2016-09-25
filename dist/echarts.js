@@ -381,8 +381,54 @@ return /******/ (function(modules) { // webpackBootstrap
 	        updateMethods.prepareAndUpdate.call(this);
 	        this._zr.refreshImmediately();
 	        this[IN_MAIN_PROCESS] = false;
-	        this._flushPendingActions();	    		
+	        this._flushPendingActions();
 	    };
+	    
+	    
+	    echartsProto.__dataZoom = null;
+	    
+	    /**
+	     * select zoom 활성/비활성화
+	     * -- add by eltriny 
+	     */
+	    echartsProto.toggleSelectZoom = function() {
+	        var compViews = myChart._componentsViews;
+	        
+	        if( ! this.__dataZoom ) {
+	            var toolboxView = null;
+	            for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
+	            	var compView = compViews[idx];
+	            	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+	            		toolboxView = compView;
+	            		break;
+	            	}
+	            }	// for - compViews
+	            
+	            if( toolboxView ) {        	
+	            	var compDataZoom = toolboxView._features.dataZoom;
+	            	if( compDataZoom ) {
+	            		this.__dataZoom = compDataZoom; 
+	            	}
+	            }
+	        }
+	        
+	        if( this.__dataZoom ) {
+	        	var ecModel = this._model;
+	        	var api 	= this._api;
+	        	this.__dataZoom.onclick( ecModel, api, 'zoom' ); 
+	        }
+	    };	// func - toggleSelectZoom
+	    
+	    /**
+	     * zoom을 이전 상태로 되돌림
+	     */
+	    echartsProto.backSelectZoom = function() {
+	        if( this.__dataZoom ) {
+	        	var ecModel = this._model;
+	        	var api 	= this._api;
+	        	this.__dataZoom.onclick( ecModel, api, 'back' ); 
+	        }    	
+	    };	// func - backSelectZoom
 	    
 	    /**
 	     * brush variable
@@ -61333,12 +61379,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	        type: 'toolbox',
 
 	        render: function (toolboxModel, ecModel, api, payload) {
+	        	
 	            var group = this.group;
 	            group.removeAll();
 
+	            /*
 	            if (!toolboxModel.get('show')) {
-	                return;
+	            	return;
 	            }
+	            */
 
 	            var itemSize = +toolboxModel.get('itemSize');
 	            var featureOpts = toolboxModel.get('feature') || {};
@@ -61348,6 +61397,34 @@ return /******/ (function(modules) { // webpackBootstrap
 	            zrUtil.each(featureOpts, function (opt, name) {
 	                featureNames.push(name);
 	            });
+	            
+	            // move by eltriny
+	            if (!toolboxModel.get('show')) {
+	            	
+	            	// add by eltriny - toolbox 가 hide인 상태에서도 feature 에 접근할 수 있도록 외부 오픈함
+	            	for( var idx = 0, nMax = featureNames.length; idx < nMax; idx++ ) {
+	            		var featureName = featureNames[ idx ];
+	            		var Feature = featureManager.get(featureName);
+	            		if (!Feature) {
+	            			return;
+	            		}
+	            		var featureOpt 	 = featureOpts[featureName];
+	            		var featureModel = new Model( featureOpt, toolboxModel, toolboxModel.ecModel );
+	            		var feature = new Feature( featureModel, ecModel, api );
+	            		features[featureName] = feature;
+	            		
+	            		// pseudo function
+	            		featureModel.setIconStatus = function() {}
+	            		
+	                    if( feature.render ) {
+	                        feature.render( featureModel, ecModel, api, payload );
+	                    }            		
+	            	}
+	            	
+	            	this._features = features;
+	            	
+	            	return;
+	            }
 
 	            (new DataDiffer(this._featureNames || [], featureNames))
 	                .add(process)
@@ -62530,6 +62607,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 
 	    proto.onclick = function (ecModel, api, type) {
+	    	
+	    	// add by eltriny
+	    	( this.ecModel ) || ( this.ecModel = ecModel );
+	        ( this.api ) || ( this.api = api );
+	    	
 	        handlers[type].call(this);
 	    };
 
@@ -62565,16 +62647,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	     * @private
 	     */
 	    proto._onBrush = function (areas, opt) {
-	    	
-	    	console.info( '==== DataZoom _onBrush ====' );
-	    	console.info( 'areas', areas );
-	    	console.info( 'opt', opt );
-	    	
+	    	    	
 	        if (!opt.isEnd || !areas.length) {
 	            return;
 	        }
-	        
-	        console.info( '=== run onBrush ===' );
 	        
 	        var snapshot = {};
 	        var ecModel = this.ecModel;

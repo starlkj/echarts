@@ -342,8 +342,54 @@ return /******/ (function(modules) { // webpackBootstrap
 	        updateMethods.prepareAndUpdate.call(this);
 	        this._zr.refreshImmediately();
 	        this[IN_MAIN_PROCESS] = false;
-	        this._flushPendingActions();	    		
+	        this._flushPendingActions();
 	    };
+	    
+	    
+	    echartsProto.__dataZoom = null;
+	    
+	    /**
+	     * select zoom 활성/비활성화
+	     * -- add by eltriny 
+	     */
+	    echartsProto.toggleSelectZoom = function() {
+	        var compViews = myChart._componentsViews;
+	        
+	        if( ! this.__dataZoom ) {
+	            var toolboxView = null;
+	            for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
+	            	var compView = compViews[idx];
+	            	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+	            		toolboxView = compView;
+	            		break;
+	            	}
+	            }	// for - compViews
+	            
+	            if( toolboxView ) {        	
+	            	var compDataZoom = toolboxView._features.dataZoom;
+	            	if( compDataZoom ) {
+	            		this.__dataZoom = compDataZoom; 
+	            	}
+	            }
+	        }
+	        
+	        if( this.__dataZoom ) {
+	        	var ecModel = this._model;
+	        	var api 	= this._api;
+	        	this.__dataZoom.onclick( ecModel, api, 'zoom' ); 
+	        }
+	    };	// func - toggleSelectZoom
+	    
+	    /**
+	     * zoom을 이전 상태로 되돌림
+	     */
+	    echartsProto.backSelectZoom = function() {
+	        if( this.__dataZoom ) {
+	        	var ecModel = this._model;
+	        	var api 	= this._api;
+	        	this.__dataZoom.onclick( ecModel, api, 'back' ); 
+	        }    	
+	    };	// func - backSelectZoom
 	    
 	    /**
 	     * brush variable

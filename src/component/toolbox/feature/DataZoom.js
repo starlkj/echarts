@@ -56,6 +56,11 @@ define(function(require) {
     };
 
     proto.onclick = function (ecModel, api, type) {
+    	
+    	// add by eltriny
+    	( this.ecModel ) || ( this.ecModel = ecModel );
+        ( this.api ) || ( this.api = api );
+    	
         handlers[type].call(this);
     };
 
@@ -91,16 +96,10 @@ define(function(require) {
      * @private
      */
     proto._onBrush = function (areas, opt) {
-    	
-    	console.info( '==== DataZoom _onBrush ====' );
-    	console.info( 'areas', areas );
-    	console.info( 'opt', opt );
-    	
+    	    	
         if (!opt.isEnd || !areas.length) {
             return;
         }
-        
-        console.info( '=== run onBrush ===' );
         
         var snapshot = {};
         var ecModel = this.ecModel;
