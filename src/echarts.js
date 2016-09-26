@@ -283,7 +283,7 @@ define(function (require) {
      * -- add by eltriny 
      */
     echartsProto.toggleSelectZoom = function() {
-        var compViews = myChart._componentsViews;
+        var compViews = this._componentsViews;
         
         if( ! this.__dataZoom ) {
             var toolboxView = null;
