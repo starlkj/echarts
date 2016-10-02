@@ -306,7 +306,12 @@ define(function (require) {
         if( this.__dataZoom ) {
         	var ecModel = this._model;
         	var api 	= this._api;
-        	this.__dataZoom.onclick( ecModel, api, 'zoom' ); 
+        	this.__dataZoom.onclick( 
+        		ecModel, 
+        		api, 
+        		'zoom',
+        		! this.__dataZoom._isZoomActive
+        	);
         }
     };	// func - toggleSelectZoom
     

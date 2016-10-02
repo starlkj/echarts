@@ -55,13 +55,15 @@ define(function(require) {
         updateBackBtnStatus(featureModel, ecModel);
     };
 
-    proto.onclick = function (ecModel, api, type) {
+    proto.onclick = function (ecModel, api, type, isZoomActive ) {
     	
     	// add by eltriny
     	( this.ecModel ) || ( this.ecModel = ecModel );
         ( this.api ) || ( this.api = api );
-    	
-        handlers[type].call(this);
+        
+        // edit by eltriny
+        // handlers[type].call(this);
+        handlers[type].call( this, isZoomActive );
     };
 
     proto.remove = function (ecModel, api) {
@@ -77,8 +79,13 @@ define(function(require) {
      */
     var handlers = {
 
-        zoom: function () {
+        zoom: function ( isZoomActive ) {
+        	
             var nextActive = !this._isZoomActive;
+            
+            if( 'boolean' == typeof isZoomActive ) {
+            	nextActive = isZoomActive;
+            }
 
             this.api.dispatchAction({
                 type: 'takeGlobalCursor',
@@ -235,7 +242,6 @@ define(function(require) {
 
 
     require('../featureManager').register('dataZoom', DataZoom);
-
 
     // Create special dataZoom option for select
     require('../../../echarts').registerPreprocessor(function (option) {

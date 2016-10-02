@@ -389,7 +389,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	        if( this.__dataZoom ) {
 	        	var ecModel = this._model;
 	        	var api 	= this._api;
-	        	this.__dataZoom.onclick( ecModel, api, 'zoom' ); 
+	        	this.__dataZoom.onclick( 
+	        		ecModel, 
+	        		api, 
+	        		'zoom',
+	        		! this.__dataZoom._isZoomActive
+	        	);
 	        }
 	    };	// func - toggleSelectZoom
 	    
@@ -40237,13 +40242,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	        updateBackBtnStatus(featureModel, ecModel);
 	    };
 
-	    proto.onclick = function (ecModel, api, type) {
+	    proto.onclick = function (ecModel, api, type, isZoomActive ) {
 	    	
 	    	// add by eltriny
 	    	( this.ecModel ) || ( this.ecModel = ecModel );
 	        ( this.api ) || ( this.api = api );
-	    	
-	        handlers[type].call(this);
+	        
+	        // edit by eltriny
+	        // handlers[type].call(this);
+	        handlers[type].call( this, isZoomActive );
 	    };
 
 	    proto.remove = function (ecModel, api) {
@@ -40259,8 +40266,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	     */
 	    var handlers = {
 
-	        zoom: function () {
+	        zoom: function ( isZoomActive ) {
+	        	
 	            var nextActive = !this._isZoomActive;
+	            
+	            if( 'boolean' == typeof isZoomActive ) {
+	            	nextActive = isZoomActive;
+	            }
 
 	            this.api.dispatchAction({
 	                type: 'takeGlobalCursor',
@@ -40417,7 +40429,6 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 	    __webpack_require__(314).register('dataZoom', DataZoom);
-
 
 	    // Create special dataZoom option for select
 	    __webpack_require__(1).registerPreprocessor(function (option) {
