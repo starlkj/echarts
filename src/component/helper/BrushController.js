@@ -879,6 +879,13 @@ define(function (require) {
             	// 추가 파라메터 정의
             	isClick 	= false;
             	isDragEnd 	= true;
+            	
+            	// add by eltriny 
+            	// 요청사항 : Brush - select 그려지고 나서 자동적으로 brush 표시가 지워지도록 처리 필요
+                if( BRUSH_TYPE.SELECT == this._type 
+                		&& this._brushOption.brushMode === 'single' ) {
+                	clearCovers( this );	// this == controller	
+                }
 
             }
             else {
