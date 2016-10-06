@@ -358,9 +358,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this._flushPendingActions();
 	    };
 	    
-	    
-	    echartsProto.__dataZoom = null;
-	    
 	    /**
 	     * select zoom 활성/비활성화
 	     * -- add by eltriny 
@@ -368,32 +365,31 @@ return /******/ (function(modules) { // webpackBootstrap
 	    echartsProto.toggleSelectZoom = function() {
 	        var compViews = this._componentsViews;
 	        
-	        if( ! this.__dataZoom ) {
-	            var toolboxView = null;
-	            for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
-	            	var compView = compViews[idx];
-	            	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
-	            		toolboxView = compView;
-	            		break;
-	            	}
-	            }	// for - compViews
-	            
-	            if( toolboxView ) {        	
-	            	var compDataZoom = toolboxView._features.dataZoom;
-	            	if( compDataZoom ) {
-	            		this.__dataZoom = compDataZoom; 
-	            	}
-	            }
+	        var dataZoom 	= null;
+	        var toolboxView = null;
+	        for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
+	        	var compView = compViews[idx];
+	        	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+	        		toolboxView = compView;
+	        		break;
+	        	}
+	        }	// for - compViews
+	        
+	        if( toolboxView ) {        	
+	        	var compDataZoom = toolboxView._features.dataZoom;
+	        	if( compDataZoom ) {
+	        		dataZoom = compDataZoom; 
+	        	}
 	        }
 	        
-	        if( this.__dataZoom ) {
+	        if( dataZoom ) {
 	        	var ecModel = this._model;
 	        	var api 	= this._api;
-	        	this.__dataZoom.onclick( 
+	        	dataZoom.onclick( 
 	        		ecModel, 
 	        		api, 
 	        		'zoom',
-	        		! this.__dataZoom._isZoomActive
+	        		! dataZoom._isZoomActive
 	        	);
 	        }
 	    };	// func - toggleSelectZoom
@@ -402,11 +398,32 @@ return /******/ (function(modules) { // webpackBootstrap
 	     * zoom을 이전 상태로 되돌림
 	     */
 	    echartsProto.backSelectZoom = function() {
-	        if( this.__dataZoom ) {
+	    	
+	        var compViews = this._componentsViews;
+	        
+	        var dataZoom 	= null;
+	        var toolboxView = null;
+	        for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
+	        	var compView = compViews[idx];
+	        	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+	        		toolboxView = compView;
+	        		break;
+	        	}
+	        }	// for - compViews
+	        
+	        if( toolboxView ) {        	
+	        	var compDataZoom = toolboxView._features.dataZoom;
+	        	if( compDataZoom ) {
+	        		dataZoom = compDataZoom; 
+	        	}
+	        }
+	    	
+	        if( dataZoom ) {
 	        	var ecModel = this._model;
 	        	var api 	= this._api;
-	        	this.__dataZoom.onclick( ecModel, api, 'back' ); 
-	        }    	
+	        	dataZoom.onclick( ecModel, api, 'back' ); 
+	        }
+	        
 	    };	// func - backSelectZoom
 	    
 	    /**
@@ -1320,8 +1337,28 @@ return /******/ (function(modules) { // webpackBootstrap
 	     * @private
 	     */
 	    echartsProto._initEvents = function () {
+	    	    	
+	    	// add by eltriny - BugFix2 : Drag & Click Conflict 
+	    	var CLICK_THRESHOLD = 5; // > 4
+	    	var mousedownPoint;
+	    	
 	        each(MOUSE_EVENT_NAMES, function (eveName) {
 	            this._zr.on(eveName, function (e) {
+
+	            	// add by eltriny - BugFix2 : Drag & Click Conflict ---- Start
+	            	if( 'mousedown' == eveName ) {
+	            		mousedownPoint = [e.offsetX, e.offsetY];
+	            	}
+	            	
+	            	if( 'click' == eveName ) {
+	                    var point = [e.offsetX, e.offsetY];
+	                    var dist = Math.pow(mousedownPoint[0] - point[0], 2) + Math.pow(mousedownPoint[1] - point[1], 2);
+	                    if( dist > CLICK_THRESHOLD ) {
+	                    	return;
+	                    }
+	            	}
+	            	// add by eltriny - BugFix2 : Drag & Click Conflict ---- End
+	            	
 	                var ecModel = this.getModel();
 	                var el = e.target;
 	                if (el && el.dataIndex != null) {
@@ -30956,7 +30993,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            if (true) {
 	                zrUtil.assert(this._mounted);
 	            }
-
+	           
 	            this._brushType && doDisableBrush(this);
 	            brushOption.brushType && doEnableBrush(this, brushOption);
 
@@ -31672,55 +31709,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	        
 	    }
-	/*
-	    function handleDragEnd(e) {
-	    	
-	        if (this._dragging) {
-
-	            preventDefault(e);
-
-	            var eventParams = updateCoverByMouse(this, e, true);
-
-	            this._dragging = false;
-	            this._track = [];
-	            this._creatingCover = null;
-	            
-	            // trigger event shoule be at final, after procedure will be nested.
-	            // eventParams && trigger(this, eventParams);
-
-	            // edit by eltriny
-	            if( eventParams ) {
-	            	
-	            	// console.info( 'brushController - mousemove' );            	
-	            	
-	            	// 기본값 정의
-	            	eventParams.isClick 	= false;
-	            	eventParams.isDragEnd 	= false;
-	            	
-	            	// 드래그 종료 옵션 활성 처리
-	            	if( this._isMouseMove ) {
-	            		eventParams.isDragEnd = true
-	            	}
-	            	else {
-	            		eventParams.isClick = true;
-	            	}
-	            	
-	            	// 이벤트 발생
-	            	trigger(this, eventParams);
-	            }
-	            else {
-	            	// console.info( 'brushController - click' );
-	            	trigger(this, {
-	            		isClick 	: true,
-	                	isDragEnd 	: false
-	            	});
-	            }
-
-	            // add by eltriny
-	            this._isMouseMove = false;
-	        }
-	    }
-	*/
 	    /**
 	     * key: brushType
 	     * @type {Object}
@@ -39041,8 +39029,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	                featureNames.push(name);
 	            });
 	            
-	            // move by eltriny
-	            if (!toolboxModel.get('show')) {
+	            // add by eltriny - BugFix1 : toggleSelectZoom --- Start
+	/*            
+	            if( !toolboxModel.get( 'show' ) ) {
 	            	
 	            	// add by eltriny - toolbox 가 hide인 상태에서도 feature 에 접근할 수 있도록 외부 오픈함
 	            	for( var idx = 0, nMax = featureNames.length; idx < nMax; idx++ ) {
@@ -39068,6 +39057,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	            	
 	            	return;
 	            }
+	*/            
+	            // add by eltriny - BugFix1 : toggleSelectZoom --- End 
 
 	            (new DataDiffer(this._featureNames || [], featureNames))
 	                .add(process)
@@ -39117,25 +39108,30 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    feature.dispose && feature.dispose(ecModel, api);
 	                    return;
 	                }
-
+	/*
 	                if (!featureModel.get('show') || feature.unusable) {
 	                    feature.remove && feature.remove(ecModel, api);
 	                    return;
 	                }
-
-	                createIconPaths(featureModel, feature, featureName);
-
-	                featureModel.setIconStatus = function (iconName, status) {
-	                    var option = this.option;
-	                    var iconPaths = this.iconPaths;
-	                    option.iconStatus = option.iconStatus || {};
-	                    option.iconStatus[iconName] = status;
-	                    // FIXME
-	                    iconPaths[iconName] && iconPaths[iconName].trigger(status);
-	                };
-
+	*/
+	                if( toolboxModel.get('show')  ) {
+		                createIconPaths(featureModel, feature, featureName);
+		
+		                featureModel.setIconStatus = function (iconName, status) {
+		                    var option = this.option;
+		                    var iconPaths = this.iconPaths;
+		                    option.iconStatus = option.iconStatus || {};
+		                    option.iconStatus[iconName] = status;
+		                    // FIXME
+		                    iconPaths[iconName] && iconPaths[iconName].trigger(status);
+		                };	
+	                }
+	                else {
+	                	featureModel.setIconStatus = function() {}                	
+	                }
+	                
 	                if (feature.render) {
-	                    feature.render(featureModel, ecModel, api, payload);
+	                	feature.render(featureModel, ecModel, api, payload);
 	                }
 	            }
 
@@ -39252,7 +39248,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    }
 	                }
 	            });
-	        },
+	        },	// Function - render
 
 	        updateView: function (toolboxModel, ecModel, api, payload) {
 	            zrUtil.each(this._features, function (feature) {
@@ -40244,6 +40240,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this.model = featureModel;
 	        this.ecModel = ecModel;
 	        this.api = api;
+	        
+	        // add by eltriny - BugFix1 : toggleSelectZoom > 차트 새로고침을 아예 새로 그림으로 할 경우 이전의 설정값이 없어지므로...ecModel에 담아서 그 값을 가져오도록 처리
+	        if( 'undefined' == typeof this._isZoomActive && 'undefined' != typeof this.ecModel.__zoomActiveFlag ) {
+	        	this._isZoomActive = this.ecModel.__zoomActiveFlag;
+	        }
 
 	        updateZoomBtnStatus(featureModel, ecModel, this, payload);
 	        updateBackBtnStatus(featureModel, ecModel);
@@ -40277,8 +40278,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	        	
 	            var nextActive = !this._isZoomActive;
 	            
+	            // add by eltriny - BugFix1 : toggleSelectZoom > toogle 여부를 체크하는 _isZoomActive가 정상적으로 업데이트가 안되는 상황에 대해서 강제 처리를 하기 위함
 	            if( 'boolean' == typeof isZoomActive ) {
 	            	nextActive = isZoomActive;
+	            	this._isZoomActive = isZoomActive;
+	            	this.ecModel.__zoomActiveFlag = isZoomActive;
 	            }
 
 	            this.api.dispatchAction({
@@ -40286,6 +40290,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                key: 'dataZoomSelect',
 	                dataZoomSelectActive: nextActive
 	            });
+	          
 	        },
 
 	        back: function () {

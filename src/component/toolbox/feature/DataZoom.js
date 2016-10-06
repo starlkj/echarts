@@ -50,6 +50,11 @@ define(function(require) {
         this.model = featureModel;
         this.ecModel = ecModel;
         this.api = api;
+        
+        // add by eltriny - BugFix1 : toggleSelectZoom > 차트 새로고침을 아예 새로 그림으로 할 경우 이전의 설정값이 없어지므로...ecModel에 담아서 그 값을 가져오도록 처리
+        if( 'undefined' == typeof this._isZoomActive && 'undefined' != typeof this.ecModel.__zoomActiveFlag ) {
+        	this._isZoomActive = this.ecModel.__zoomActiveFlag;
+        }
 
         updateZoomBtnStatus(featureModel, ecModel, this, payload);
         updateBackBtnStatus(featureModel, ecModel);
@@ -83,8 +88,11 @@ define(function(require) {
         	
             var nextActive = !this._isZoomActive;
             
+            // add by eltriny - BugFix1 : toggleSelectZoom > toogle 여부를 체크하는 _isZoomActive가 정상적으로 업데이트가 안되는 상황에 대해서 강제 처리를 하기 위함
             if( 'boolean' == typeof isZoomActive ) {
             	nextActive = isZoomActive;
+            	this._isZoomActive = isZoomActive;
+            	this.ecModel.__zoomActiveFlag = isZoomActive;
             }
 
             this.api.dispatchAction({
@@ -92,6 +100,7 @@ define(function(require) {
                 key: 'dataZoomSelect',
                 dataZoomSelectActive: nextActive
             });
+          
         },
 
         back: function () {

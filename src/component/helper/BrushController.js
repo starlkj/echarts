@@ -206,7 +206,7 @@ define(function (require) {
             if (__DEV__) {
                 zrUtil.assert(this._mounted);
             }
-
+           
             this._brushType && doDisableBrush(this);
             brushOption.brushType && doEnableBrush(this, brushOption);
 
@@ -922,55 +922,6 @@ define(function (require) {
         }
         
     }
-/*
-    function handleDragEnd(e) {
-    	
-        if (this._dragging) {
-
-            preventDefault(e);
-
-            var eventParams = updateCoverByMouse(this, e, true);
-
-            this._dragging = false;
-            this._track = [];
-            this._creatingCover = null;
-            
-            // trigger event shoule be at final, after procedure will be nested.
-            // eventParams && trigger(this, eventParams);
-
-            // edit by eltriny
-            if( eventParams ) {
-            	
-            	// console.info( 'brushController - mousemove' );            	
-            	
-            	// 기본값 정의
-            	eventParams.isClick 	= false;
-            	eventParams.isDragEnd 	= false;
-            	
-            	// 드래그 종료 옵션 활성 처리
-            	if( this._isMouseMove ) {
-            		eventParams.isDragEnd = true
-            	}
-            	else {
-            		eventParams.isClick = true;
-            	}
-            	
-            	// 이벤트 발생
-            	trigger(this, eventParams);
-            }
-            else {
-            	// console.info( 'brushController - click' );
-            	trigger(this, {
-            		isClick 	: true,
-                	isDragEnd 	: false
-            	});
-            }
-
-            // add by eltriny
-            this._isMouseMove = false;
-        }
-    }
-*/
     /**
      * key: brushType
      * @type {Object}

@@ -32,8 +32,9 @@ define(function (require) {
                 featureNames.push(name);
             });
             
-            // move by eltriny
-            if (!toolboxModel.get('show')) {
+            // add by eltriny - BugFix1 : toggleSelectZoom --- Start
+/*            
+            if( !toolboxModel.get( 'show' ) ) {
             	
             	// add by eltriny - toolbox 가 hide인 상태에서도 feature 에 접근할 수 있도록 외부 오픈함
             	for( var idx = 0, nMax = featureNames.length; idx < nMax; idx++ ) {
@@ -59,6 +60,8 @@ define(function (require) {
             	
             	return;
             }
+*/            
+            // add by eltriny - BugFix1 : toggleSelectZoom --- End 
 
             (new DataDiffer(this._featureNames || [], featureNames))
                 .add(process)
@@ -108,25 +111,30 @@ define(function (require) {
                     feature.dispose && feature.dispose(ecModel, api);
                     return;
                 }
-
+/*
                 if (!featureModel.get('show') || feature.unusable) {
                     feature.remove && feature.remove(ecModel, api);
                     return;
                 }
-
-                createIconPaths(featureModel, feature, featureName);
-
-                featureModel.setIconStatus = function (iconName, status) {
-                    var option = this.option;
-                    var iconPaths = this.iconPaths;
-                    option.iconStatus = option.iconStatus || {};
-                    option.iconStatus[iconName] = status;
-                    // FIXME
-                    iconPaths[iconName] && iconPaths[iconName].trigger(status);
-                };
-
+*/
+                if( toolboxModel.get('show')  ) {
+	                createIconPaths(featureModel, feature, featureName);
+	
+	                featureModel.setIconStatus = function (iconName, status) {
+	                    var option = this.option;
+	                    var iconPaths = this.iconPaths;
+	                    option.iconStatus = option.iconStatus || {};
+	                    option.iconStatus[iconName] = status;
+	                    // FIXME
+	                    iconPaths[iconName] && iconPaths[iconName].trigger(status);
+	                };	
+                }
+                else {
+                	featureModel.setIconStatus = function() {}                	
+                }
+                
                 if (feature.render) {
-                    feature.render(featureModel, ecModel, api, payload);
+                	feature.render(featureModel, ecModel, api, payload);
                 }
             }
 
@@ -243,7 +251,7 @@ define(function (require) {
                     }
                 }
             });
-        },
+        },	// Function - render
 
         updateView: function (toolboxModel, ecModel, api, payload) {
             zrUtil.each(this._features, function (feature) {

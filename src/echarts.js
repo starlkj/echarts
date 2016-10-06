@@ -275,9 +275,6 @@ define(function (require) {
         this._flushPendingActions();
     };
     
-    
-    echartsProto.__dataZoom = null;
-    
     /**
      * select zoom 활성/비활성화
      * -- add by eltriny 
@@ -285,32 +282,31 @@ define(function (require) {
     echartsProto.toggleSelectZoom = function() {
         var compViews = this._componentsViews;
         
-        if( ! this.__dataZoom ) {
-            var toolboxView = null;
-            for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
-            	var compView = compViews[idx];
-            	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
-            		toolboxView = compView;
-            		break;
-            	}
-            }	// for - compViews
-            
-            if( toolboxView ) {        	
-            	var compDataZoom = toolboxView._features.dataZoom;
-            	if( compDataZoom ) {
-            		this.__dataZoom = compDataZoom; 
-            	}
-            }
+        var dataZoom 	= null;
+        var toolboxView = null;
+        for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
+        	var compView = compViews[idx];
+        	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+        		toolboxView = compView;
+        		break;
+        	}
+        }	// for - compViews
+        
+        if( toolboxView ) {        	
+        	var compDataZoom = toolboxView._features.dataZoom;
+        	if( compDataZoom ) {
+        		dataZoom = compDataZoom; 
+        	}
         }
         
-        if( this.__dataZoom ) {
+        if( dataZoom ) {
         	var ecModel = this._model;
         	var api 	= this._api;
-        	this.__dataZoom.onclick( 
+        	dataZoom.onclick( 
         		ecModel, 
         		api, 
         		'zoom',
-        		! this.__dataZoom._isZoomActive
+        		! dataZoom._isZoomActive
         	);
         }
     };	// func - toggleSelectZoom
@@ -319,11 +315,32 @@ define(function (require) {
      * zoom을 이전 상태로 되돌림
      */
     echartsProto.backSelectZoom = function() {
-        if( this.__dataZoom ) {
+    	
+        var compViews = this._componentsViews;
+        
+        var dataZoom 	= null;
+        var toolboxView = null;
+        for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
+        	var compView = compViews[idx];
+        	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+        		toolboxView = compView;
+        		break;
+        	}
+        }	// for - compViews
+        
+        if( toolboxView ) {        	
+        	var compDataZoom = toolboxView._features.dataZoom;
+        	if( compDataZoom ) {
+        		dataZoom = compDataZoom; 
+        	}
+        }
+    	
+        if( dataZoom ) {
         	var ecModel = this._model;
         	var api 	= this._api;
-        	this.__dataZoom.onclick( ecModel, api, 'back' ); 
-        }    	
+        	dataZoom.onclick( ecModel, api, 'back' ); 
+        }
+        
     };	// func - backSelectZoom
     
     /**
@@ -1237,8 +1254,28 @@ define(function (require) {
      * @private
      */
     echartsProto._initEvents = function () {
+    	    	
+    	// add by eltriny - BugFix2 : Drag & Click Conflict 
+    	var CLICK_THRESHOLD = 5; // > 4
+    	var mousedownPoint;
+    	
         each(MOUSE_EVENT_NAMES, function (eveName) {
             this._zr.on(eveName, function (e) {
+
+            	// add by eltriny - BugFix2 : Drag & Click Conflict ---- Start
+            	if( 'mousedown' == eveName ) {
+            		mousedownPoint = [e.offsetX, e.offsetY];
+            	}
+            	
+            	if( 'click' == eveName ) {
+                    var point = [e.offsetX, e.offsetY];
+                    var dist = Math.pow(mousedownPoint[0] - point[0], 2) + Math.pow(mousedownPoint[1] - point[1], 2);
+                    if( dist > CLICK_THRESHOLD ) {
+                    	return;
+                    }
+            	}
+            	// add by eltriny - BugFix2 : Drag & Click Conflict ---- End
+            	
                 var ecModel = this.getModel();
                 var el = e.target;
                 if (el && el.dataIndex != null) {
