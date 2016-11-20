@@ -165,6 +165,22 @@ define(function (require) {
                 position: textPosition,
                 scale: [invScale, invScale]
             });
+            
+        	// add by eltriny - #20161015-02 : MarkLine Label Rectangle --- Start
+        	var labelContainer = lineGroup.childOfName( 'labelContainer' );
+        	if( labelContainer ) {
+        		var objShape = labelContainer.attr().shape;
+        		labelContainer.attr(
+    				{
+    					shape : {
+    						x : textPosition[0] - objShape.width,
+    						y : textPosition[1] - ( objShape.height / 2 )        				
+    					}        			
+    				}
+        		);
+        	}
+        	// add by eltriny - #20161015-02 : MarkLine Label Rectangle --- End            
+            
         }
     }
 
@@ -198,6 +214,30 @@ define(function (require) {
 
         this.add(line);
 
+        // add by eltriny - #20161015-02 : MarkLine Label Rectangle --- Start
+
+        var itemOpts = lineData.getItemModel( idx ).option;
+        
+        if( itemOpts && itemOpts.label && itemOpts.label.normal && itemOpts.label.normal.fill ) {
+        	var normalLabelFill	= itemOpts.label.normal.fill;
+        	var objTextRect 	= seriesModel.getTextRect( seriesModel.getRawValue( idx ) );
+        	var labelContainer = new graphic.Rect({
+        		name : 'labelContainer',
+        		shape: {
+        			x: 0,
+        			y: 0,
+        			width	: objTextRect.width + 10,
+        			height	: objTextRect.height + 10
+        		},
+        		style: { fill : normalLabelFill },
+        		z: 2,
+        		zlevel: 0
+        	});
+        	this.add( labelContainer );        	
+        }	// end if - normalLabelFill
+        
+        // add by eltriny - #20161015-02 : MarkLine Label Rectangle --- End
+        
         var label = new graphic.Text({
             name: 'label'
         });

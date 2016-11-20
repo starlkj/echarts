@@ -29,6 +29,18 @@ define(function(require) {
          * @type {boolean}
          */
         this._isZoomActive;
+
+        // add by eltriny
+        // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
+        this.api = api;
+        
+        // add by eltriny
+        // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
+        this._brushSelectData = null;
+        
+        // add by eltriny
+        // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
+        this.api.on( 'brushSelected', zrUtil.bind( this._onBrushSelected, this ) );        
     }
 
     DataZoom.defaultOption = {
@@ -107,15 +119,51 @@ define(function(require) {
             this._dispatchZoomAction(history.pop(this.ecModel));
         }
     };
+    
+    
+    /**
+     * @private
+     * add by eltriny
+     */
+    proto._onBrushSelected = function ( selectedData ) {        	
+    	this._brushSelectData = selectedData.batch;         	
+    };
 
     /**
      * @private
      */
     proto._onBrush = function (areas, opt) {
+    	
+    	// Brush의 Drag 이벤트가 이쪽으로 넘어온다....
     	    	
         if (!opt.isEnd || !areas.length) {
             return;
         }
+        
+        // add by eltriny - #20161017-02 : dataZoomDragEnd Event Start
+        // Brush Drag End 시 이벤트 발생        
+        if( opt.isDragEnd ) {
+        	var modelId = this.model.id;
+        	this.api.dispatchAction( 
+        		{ 
+        			type			: 'dataZoomDragEnd',
+        			brushId			: modelId,
+                    areas			: zrUtil.clone(areas),
+                    $from			: modelId,
+                    brushSelectData : zrUtil.clone( this._brushSelectData )
+        		} 
+        	);
+        	
+        	this._brushSelectData = null;
+        }        
+        
+        if( opt.isEnd && opt.removeOnClick ) {
+        	this.api.dispatchAction( { type: 'enableTip' } );
+        }
+        else {
+        	this.api.dispatchAction( { type: 'disableTip' } );            	
+        }
+        // add by eltriny - #20161017-02 : dataZoomDragEnd Event End        
         
         var snapshot = {};
         var ecModel = this.ecModel;
@@ -151,10 +199,25 @@ define(function(require) {
         function setBatch(axisName, minMax, coordInfo) {
             var dataZoomModel = findDataZoom(axisName, coordInfo[axisName], ecModel);
             if (dataZoomModel) {
+            	                
+                // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - Start
+                var percentRange 	= dataZoomModel.getPercentRange();
+                var valueRange 		= dataZoomModel.getValueRange();
+                
+                var rangePercentStart 	= ( percentRange[1] * minMax[0] ) / valueRange[1];
+                var rangePercentEnd 	= ( percentRange[1] * minMax[1] ) / valueRange[1];
+                // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - End
+            	
                 snapshot[dataZoomModel.id] = {
                     dataZoomId: dataZoomModel.id,
                     startValue: minMax[0],
-                    endValue: minMax[1]
+                    endValue: minMax[1],
+                    range: {
+                    	start: rangePercentStart,	// add by eltriny - #20161018-03
+                    	end: rangePercentEnd,		// add by eltriny - #20161018-03
+                    	startValue: minMax[0],		// add by eltriny - #20161018-03
+                    	endValue: minMax[1]			// add by eltriny - #20161018-03
+                    }
                 };
             }
         }
@@ -186,7 +249,7 @@ define(function(require) {
         each(snapshot, function (batchItem, dataZoomId) {
             batch.push(zrUtil.clone(batchItem));
         });
-
+                
         batch.length && this.api.dispatchAction({
             type: 'dataZoom',
             from: this.uid,

@@ -119,22 +119,22 @@ define(function(require) {
         return v1 * v4 - v2 * v3;
     }
 
-    function makeBoundingRect(itemLayout) {
-        var x = itemLayout.x;
-        var y = itemLayout.y;
-        var width = itemLayout.width;
-        var height = itemLayout.height;
-
-        // width and height might be negative.
-        if (width < 0) {
-            x = x + width;
-            width = -width;
-        }
-        if (height < 0) {
-            y = y + height;
-            height = -height;
-        }
-        return new BoundingRect(x, y, width, height);
+    function makeBoundingRect(itemLayout) { 		
+		var x = itemLayout.x;
+		var y = itemLayout.y;
+		var width = itemLayout.width;
+		var height = itemLayout.height;
+		
+		// width and height might be negative.
+		if (width < 0) {
+			x = x + width;
+			width = -width;
+		}
+		if (height < 0) {
+			y = y + height;
+			height = -height;
+		}
+		return new BoundingRect(x, y, width, height);
     }
 
     return selector;

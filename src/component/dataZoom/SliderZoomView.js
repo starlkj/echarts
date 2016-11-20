@@ -675,12 +675,21 @@ define(function (require) {
         _dispatchZoomAction: function () {
             var range = this._range;
 
+            // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - Start
+            var dataZoomModel 	= this.dataZoomModel;
+            var axisProxy 		= dataZoomModel.findRepresentativeAxisProxy();
+            var percentRange 	= axisProxy.getDataPercentWindow();
+            var valueRange 		= axisProxy.getDataValueWindow();
+            // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - End
+            
             this.api.dispatchAction({
                 type: 'dataZoom',
                 from: this.uid,
                 dataZoomId: this.dataZoomModel.id,
                 start: range[0],
-                end: range[1]
+                end: range[1],
+                startValue: valueRange[0],	// add by eltriny - #20161018-03
+                endValue: valueRange[1]		// add by eltriny - #20161018-03
             });
         },
 

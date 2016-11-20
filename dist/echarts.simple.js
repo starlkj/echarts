@@ -325,25 +325,186 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    /**
 	     * set Show toogle dataZoom 
+	     * edit by eltriny - #20161017-03 : 3. setShowDataZoom / setShowLegend 기능 보완 
 	     */
 	    echartsProto.setShowDataZoom = function(flag){
-			this[IN_MAIN_PROCESS] = true;
-			this._model.option.dataZoom[0].show = flag;
-			if( 0 == this._model.option.dataZoom[0].y ) {
-				// 상단에 위치한 경우
-				if( flag ) {
-					this._model.option.grid[0].top = this._tempDataZoomHeight;
-				}
-				else {
-					this._tempDataZoomHeight = this._model.option.grid[0].top;
-					this._model.option.grid[0].top = '1%';
-				}
-			}
-	        updateMethods.prepareAndUpdate.call(this);
-	        this._zr.refreshImmediately();
-	        this[IN_MAIN_PROCESS] = false;
-	        this._flushPendingActions();
+	    	
+	    	if( this._model && this._model.option ) {
+	    		this[IN_MAIN_PROCESS] = true;
+				
+	    		var arrDataZoom = this._model.option.dataZoom;		
+	    		for( var idx = 0, nMax = arrDataZoom.length; idx < nMax; idx++ ) {
+	    			
+	    			var tempDataZoom  = arrDataZoom[idx];
+	    			if( tempDataZoom.show != flag && 'slider' == tempDataZoom.type ) {
+	    				tempDataZoom.show = flag;
+	    				if( 'horizontal' == tempDataZoom.orient && 'ph' != tempDataZoom.top ) {
+	        				var nMiniMapHeight 	= ( 'ph' == tempDataZoom.height ) ? 30 : +tempDataZoom.height;    				
+	        				var nGridTop 		= this._model.option.grid[0].top;
+	        				
+	        				if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
+	        					nGridTop = nGridTop.replace( /%/gi, '' );
+	        					nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
+	        					this._model.option.grid[0].top = nGridTop; 
+	        				}
+	        				
+	    					if( flag ) {
+	    						this._model.option.grid[0].top += nMiniMapHeight;
+	    					}
+	    					else {
+	    						this._model.option.grid[0].top -= nMiniMapHeight;
+	    					}
+	        			}
+	        			else if( 'vertical' == tempDataZoom.orient ) {
+	        				var nMiniMapWidth = ( 'ph' == tempDataZoom.width ) ? 30 : +tempDataZoom.width;
+	        				var nGridRight 	  = this._model.option.grid[0].right;
+	        				
+	        				if( 'string' == typeof nGridRight && -1 < nGridRight.indexOf( '%' ) ) {
+	        					nGridRight = nGridRight.replace( /%/gi, '' );
+	        					nGridRight = this._dom.scrollWidth * ( nGridRight / 100 );
+	        					this._model.option.grid[0].right = nGridRight; 
+	        				}
+	        				
+	    					if( flag ) {
+	    						this._model.option.grid[0].right += nMiniMapWidth;
+	    					}
+	    					else {
+	    						this._model.option.grid[0].right -= nMiniMapWidth;
+	    					}
+	        			}    				
+	    			}	// end if - flag equal zoom.show
+	    			
+	    		}	// end for - arrDataZoom
+	    		
+	            updateMethods.prepareAndUpdate.call(this);
+	            this._zr.refreshImmediately();
+	            this[IN_MAIN_PROCESS] = false;
+	            this._flushPendingActions();    		
+	    	}	// end - if : valid options
+
 	    };
+	    
+	    /**
+	     * set show toggle Legend
+	     * -- add by eltriny - #20161015-01 : 기능 추가
+	     * -- edit by eltriny - #20161017-03 : 3. setShowDataZoom / setShowLegend 기능 보완
+	     */
+	    echartsProto.setShowLegend = function( flag ) {    	
+			
+			if( this._model && this._model.option ) {
+
+				this[IN_MAIN_PROCESS] = true;
+				
+				var arrLegend = this._model.option.legend;		
+				for( var idx1 = 0, nMax1 = arrLegend.length; idx1 < nMax1; idx1++ ) {
+	    			
+	    			var tempLegend  = arrLegend[idx1];
+	    			if( tempLegend.show != flag ) {
+	    				tempLegend.show = flag;
+	    				var nLegendHeight 	= ( ! tempLegend.height || 'ph' == tempLegend.height ) ? 40 : +tempLegend.height;    				
+	    				var nGridTop 		= this._model.option.grid[0].top;
+	    				
+	    				if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
+	    					nGridTop = nGridTop.replace( /%/gi, '' );
+	    					nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
+	    					this._model.option.grid[0].top = nGridTop; 
+	    				}
+	    				
+						if( flag ) {
+							this._model.option.grid[0].top += nLegendHeight;
+						}
+						else {
+							this._model.option.grid[0].top -= nLegendHeight;
+						}    				
+	    				
+						// 상단 DataZoom 위치 조정 - Start
+			    		var arrDataZoom = this._model.option.dataZoom;		
+			    		for( var idx2 = 0, nMax2 = arrDataZoom.length; idx2 < nMax2; idx2++ ) {
+			    			var tempDataZoom  = arrDataZoom[idx2];
+		        			if( 'slider' == tempDataZoom.type && 'horizontal' == tempDataZoom.orient ) {            				
+	        					if( flag ) {
+	        						tempDataZoom.top += nLegendHeight;
+	        					}
+	        					else {
+	        						tempDataZoom.top -= nLegendHeight;
+	        					}
+	        					break;
+		        			}	// end if - flag equal zoom.show		    			
+			    		}
+	        			// 상단 DataZoom 위치 조정 - End
+	    				
+	    			}	// end if - flag equal zoom.show
+	    			
+	    		}	// end for - arrLegend
+				
+				updateMethods.prepareAndUpdate.call(this);
+				this._zr.refreshImmediately();
+				this[IN_MAIN_PROCESS] = false;
+				this._flushPendingActions();
+			}	// end - if : valid options
+
+	    };	// func - setShowLegend
+	    
+	    
+	    /**
+	     * set show toggle VisualMap
+	     * -- add by eltriny - #20161018-02 : Visual Map 에 대한 Show/Hide 기능
+	     */
+	    echartsProto.setShowVisualMap = function( flag ) {    	
+			
+			if( this._model && this._model.option ) {
+
+				this[IN_MAIN_PROCESS] = true;
+				
+				var arrVisualMap = this._model.option.visualMap;		
+				for( var idx1 = 0, nMax1 = arrVisualMap.length; idx1 < nMax1; idx1++ ) {
+	    			
+	    			var tempVisualMap  = arrVisualMap[idx1];
+	    			if( tempVisualMap.show != flag ) {
+	    				tempVisualMap.show = flag;
+	    				var nVisualMapHeight 	= ( ! tempVisualMap.height || 'ph' == tempVisualMap.height ) ? 45 : +tempVisualMap.height;    				
+	    				var nGridTop 			= this._model.option.grid[0].top;
+	    				
+	    				if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
+	    					nGridTop = nGridTop.replace( /%/gi, '' );
+	    					nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
+	    					this._model.option.grid[0].top = nGridTop; 
+	    				}
+	    				
+						if( flag ) {
+							this._model.option.grid[0].top += nVisualMapHeight;
+						}
+						else {
+							this._model.option.grid[0].top -= nVisualMapHeight;
+						}    				
+	    				
+						// 상단 DataZoom 위치 조정 - Start
+			    		var arrDataZoom = this._model.option.dataZoom;		
+			    		for( var idx2 = 0, nMax2 = arrDataZoom.length; idx2 < nMax2; idx2++ ) {
+			    			var tempDataZoom  = arrDataZoom[idx2];
+		        			if( 'slider' == tempDataZoom.type && 'horizontal' == tempDataZoom.orient ) {            				
+	        					if( flag ) {
+	        						tempDataZoom.top += nVisualMapHeight;
+	        					}
+	        					else {
+	        						tempDataZoom.top -= nVisualMapHeight;
+	        					}
+	        					break;
+		        			}	// end if - flag equal zoom.show		    			
+			    		}
+	        			// 상단 DataZoom 위치 조정 - End
+	    				
+	    			}	// end if - flag equal zoom.show
+	    			
+	    		}	// end for - arrVisualMap
+				
+				updateMethods.prepareAndUpdate.call(this);
+				this._zr.refreshImmediately();
+				this[IN_MAIN_PROCESS] = false;
+				this._flushPendingActions();
+			}	// end - if : valid options
+
+	    };	// func - setShowVisualMap    
 	    
 	    /**
 	     * select zoom 활성/비활성화
@@ -21874,6 +22035,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	            }
 	            return createListFromArray(option.data, this, ecModel);
 	        },
+	        
+	        brushSelector: 'point',		// add by eltriny - #20161109-01 : [추가] 각 차트별 Brush 기능
 
 	        defaultOption: {
 	            zlevel: 0,                  // 一级层叠

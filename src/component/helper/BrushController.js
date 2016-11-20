@@ -882,10 +882,12 @@ define(function (require) {
             	
             	// add by eltriny 
             	// 요청사항 : Brush - select 그려지고 나서 자동적으로 brush 표시가 지워지도록 처리 필요
+            	/*
                 if( BRUSH_TYPE.SELECT == this._type 
                 		&& this._brushOption.brushMode === 'single' ) {
                 	clearCovers( this );	// this == controller	
                 }
+                */
 
             }
             else {
@@ -919,6 +921,15 @@ define(function (require) {
             	eventParams.isDragEnd 	= isDragEnd; 
             	trigger(this, eventParams );	
             }
+            
+        	// add by eltriny 
+        	// 요청사항 : Brush - select 그려지고 나서 자동적으로 brush 표시가 지워지도록 처리 필요
+            // edit by eltriny - #20161018-01 : 차트 새로고침 시 클리어가 안되는 문제 수정 
+            if( BRUSH_TYPE.SELECT == this._type 
+            		&& this._brushOption.brushMode === 'single' ) {
+            	clearCovers( this );	// this == controller	
+            }
+            
         }
         
     }

@@ -234,13 +234,15 @@ define(function (require) {
 
     function checkInRange(selectorsByBrushType, rangeInfoList, data, dataIndex) {
         var itemLayout = data.getItemLayout(dataIndex);
-        for (var i = 0, len = rangeInfoList.length; i < len; i++) {
-            var area = rangeInfoList[i];
-            if (selectorsByBrushType[area.brushType](
-                itemLayout, area.selectors, area
-            )) {
-                return true;
-            }
+        if( itemLayout ) {	// add by eltriny - #20161017-01 : Select Brush 오류 처리
+        	for (var i = 0, len = rangeInfoList.length; i < len; i++) {
+        		var area = rangeInfoList[i];
+        		if (selectorsByBrushType[area.brushType](
+        				itemLayout, area.selectors, area
+        		)) {
+        			return true;
+        		}
+        	}
         }
     }
 
