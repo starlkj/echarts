@@ -86,10 +86,9 @@ define(function(require) {
             );
 
             thisOption.inBrush = thisOption.inBrush || {};
-            // add by dolkkok - #20161206-01 : Brush Effect 수정(opacity) --- Start
             // Always give default visual, consider setOption at the second time.
-            thisOption.outOfBrush = thisOption.outOfBrush || {opacity: 0.2};
-            // add by dolkkok - #20161206-01 : Brush Effect 수정(opacity) --- End
+            thisOption.outOfBrush = thisOption.outOfBrush || {color: DEFAULT_OUT_OF_BRUSH_COLOR};
+
         },
 
         /**
