@@ -126,7 +126,7 @@ define(function(require) {
         isSelected: function (name) {
             var selected = this.option.selected;
             // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End
-            if (this.option.seriesSync) {
+            if (!this.option.seriesSync) {
                 return !((name in selected) && !selected[name])
             }
             // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End

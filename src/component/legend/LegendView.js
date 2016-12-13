@@ -138,7 +138,7 @@ define(function (require) {
                 }
                 else {
                     // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- Start
-                    if (legendModel.get('seriesSync')) {
+                    if (!legendModel.get('seriesSync')) {
                         var data = [];
                         var color = legendModel.get('color')[legendModel.get('data').indexOf(name)];
                         var legendSymbolType = legendModel.get('symbol');
