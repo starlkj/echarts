@@ -125,8 +125,15 @@ define(function(require) {
          */
         isSelected: function (name) {
             var selected = this.option.selected;
-            return !((name in selected) && !selected[name])
-                && zrUtil.indexOf(this._availableNames, name) >= 0;
+            // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End
+            if (this.option.seriesSync) {
+                return !((name in selected) && !selected[name])
+            }
+            // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End
+            else {
+                return !((name in selected) && !selected[name])
+                    && zrUtil.indexOf(this._availableNames, name) >= 0;
+            }
         },
 
         defaultOption: {
@@ -186,12 +193,16 @@ define(function(require) {
             tooltip: {
                 show: false
             }
-            
+
             // page 기능 사용 여부 및 페이지 아이템 갯수 지정
             // 0 : 페이지 기능 사용 안함
             // - add by eltriny
             , pageItems : 0
             , page		: 1
+            // seriesName과의 연동 여부, symbol, color - add by dolkkok
+            , seriesSync : true
+            , symbol    : 'circle'
+            , color : []
         }
     });
 
