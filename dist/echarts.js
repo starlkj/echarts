@@ -47563,8 +47563,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	         */
 	        isSelected: function (name) {
 	            var selected = this.option.selected;
-	            // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End
-	            if (this.option.seriesSync) {
+	            // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- Start
+	            if (!this.option.seriesSync) {
 	                return !((name in selected) && !selected[name])
 	            }
 	            // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End
@@ -47881,7 +47881,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- Start
 	                    if (!legendModel.get('seriesSync')) {
 	                        var data = [];
-	                        var color = legendModel.get('color')[legendModel.get('data').indexOf(name)];
+	                        var legendIdx = legendModel.get('data').indexOf(name);
+	                        var colorList = legendModel.get('color');
+	                        var colorIdx =  legendIdx >= colorList.length ? legendIdx % colorList.length : legendIdx;
+	                        var color = colorList[colorIdx];
 	                        var legendSymbolType = legendModel.get('symbol');
 
 	                        var itemGroup = this._createItem(

@@ -140,7 +140,10 @@ define(function (require) {
                     // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- Start
                     if (!legendModel.get('seriesSync')) {
                         var data = [];
-                        var color = legendModel.get('color')[legendModel.get('data').indexOf(name)];
+                        var legendIdx = legendModel.get('data').indexOf(name);
+                        var colorList = legendModel.get('color');
+                        var colorIdx =  legendIdx >= colorList.length ? legendIdx % colorList.length : legendIdx;
+                        var color = colorList[colorIdx];
                         var legendSymbolType = legendModel.get('symbol');
 
                         var itemGroup = this._createItem(
