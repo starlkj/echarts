@@ -56,6 +56,12 @@ define(function(require) {
             selectedMode: 'multiple',   // Can be 'multiple' or 'single'.
             itemGap: 10,                // The gap between two items, in px.
             hoverLink: true             // Enable hover highlight.
+
+            // page 기능 사용 여부 및 페이지 아이템 갯수 지정
+            // 0 : 페이지 기능 사용 안함
+            // -- add by dolkkok - #20161219-01 : VisualMap Paging
+            , pageItems : 0
+            , page		: 1
         },
 
         /**
