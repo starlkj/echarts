@@ -25,6 +25,9 @@ define(function (require) {
         // 文字与轴线距离
         nameGap: 15,
 
+        // -- add by dolkkok - #20161220-01 : axisLabelArea - Height
+        labelHeight: 0,
+
         silent: false, // Default false to support tooltip.
         triggerEvent: false, // Default false to avoid legacy user event listener fail.
 

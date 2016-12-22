@@ -154,15 +154,32 @@ define(function(require, factory) {
                 if (!axis.model.get('axisLabel.inside')) {
                     var labelUnionRect = getLabelUnionRect(axis);
                     if (labelUnionRect) {
-                        var dim = axis.isHorizontal() ? 'height' : 'width';
-                        var margin = axis.model.get('axisLabel.margin');
-                        gridRect[dim] -= labelUnionRect[dim] + margin;
+                        // -- add by dolkkok - #20161220-01 : axisLabel Update --- Start
+                        var titleShow = axis.model.get('name') != '';
+                        var labelShow = axis.model.get('axisLabel.show');
+                        var gridAttr = axis.isHorizontal() ? 'height' : 'width';
+                        var rotate = axis.model.get('axisLabel.rotate');
+                        var labelAttr = axis.isHorizontal() ? rotate >= 45 ? 'width' : 'height' : rotate == 90 ? 'height' : 'width';
+                        // axisName, axisLabel 표시 여부에 따라 grid 크기 및 위치 변경
+                        var nameHeight = titleShow ? 15 : 0;
+                        var margin = labelShow ? axis.model.get('axisLabel.margin') : 0;
+                        var labelHeight = 0;
+                        if (labelShow) {
+                            labelHeight = rotate == 0 ? labelUnionRect[labelAttr] : rotate == 45 ? labelUnionRect[labelAttr] * 0.8 : labelUnionRect[labelAttr] * 1.1;
+                        }
+                        // default setting
+                        nameHeight = labelHeight + margin + nameHeight;
+                        gridRect[gridAttr] -= nameHeight == 0 ? 5 : nameHeight;
+                        axis.model.mergeOption({'nameGap': labelShow ? labelHeight + margin : margin});
+                        axis.model.mergeOption({'labelHeight': labelHeight});
+
                         if (axis.position === 'top') {
                             gridRect.y += labelUnionRect.height + margin;
                         }
                         else if (axis.position === 'left')  {
-                            gridRect.x += labelUnionRect.width + margin;
+                            gridRect.x += nameHeight == 0 ? 5 : nameHeight;
                         }
+                        // -- add by dolkkok - #20161220-01 : axisLabel Update --- End
                     }
                 }
             });
