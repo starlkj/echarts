@@ -3659,6 +3659,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            var seriesIndex = this.seriesIndex;
 	            var seriesName = this.name;
+	            var originSeriesName =this.originSeriesName || '';
 
 	            var rawValue = this.getRawValue(dataIndex, dataType);
 	            var rawDataIndex = data.getRawIndex(dataIndex);
@@ -3671,6 +3672,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                seriesType: this.mainType === 'series' ? this.subType : null,
 	                seriesIndex: seriesIndex,
 	                seriesName: seriesName,
+	                // -- add by dolkkok - #20161221-01 : originSeriesName 추가
+	                originSeriesName: originSeriesName,
 	                name: name,
 	                dataIndex: rawDataIndex,
 	                data: itemOpt,
@@ -3890,6 +3893,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 
 	    module.exports = modelUtil;
+
 
 
 /***/ },
@@ -7254,6 +7258,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	             */
 	            this.seriesIndex = this.componentIndex;
 
+	            // -- add by dolkkok - #20161221-01 : originSeriesName 추가
+	            this.originSeriesName = option.seriesName;
+
 	            this.mergeDefaultAndTheme(option, ecModel);
 
 	            /**
@@ -7470,6 +7477,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    zrUtil.mixin(SeriesModel, colorPaletteMixin);
 
 	    module.exports = SeriesModel;
+
 
 
 /***/ },
@@ -24978,15 +24986,32 @@ return /******/ (function(modules) { // webpackBootstrap
 	                if (!axis.model.get('axisLabel.inside')) {
 	                    var labelUnionRect = getLabelUnionRect(axis);
 	                    if (labelUnionRect) {
-	                        var dim = axis.isHorizontal() ? 'height' : 'width';
-	                        var margin = axis.model.get('axisLabel.margin');
-	                        gridRect[dim] -= labelUnionRect[dim] + margin;
+	                        // -- add by dolkkok - #20161220-01 : axisLabel Update --- Start
+	                        var titleShow = axis.model.get('name') != '';
+	                        var labelShow = axis.model.get('axisLabel.show');
+	                        var gridAttr = axis.isHorizontal() ? 'height' : 'width';
+	                        var rotate = axis.model.get('axisLabel.rotate');
+	                        var labelAttr = axis.isHorizontal() ? rotate >= 45 ? 'width' : 'height' : rotate == 90 ? 'height' : 'width';
+	                        // axisName, axisLabel 표시 여부에 따라 grid 크기 및 위치 변경
+	                        var nameHeight = titleShow ? 15 : 0;
+	                        var margin = labelShow ? axis.model.get('axisLabel.margin') : 0;
+	                        var labelHeight = 0;
+	                        if (labelShow) {
+	                            labelHeight = rotate == 0 ? labelUnionRect[labelAttr] : rotate == 45 ? labelUnionRect[labelAttr] * 0.8 : labelUnionRect[labelAttr] * 1.1;
+	                        }
+	                        // default setting
+	                        nameHeight = labelHeight + margin + nameHeight;
+	                        gridRect[gridAttr] -= nameHeight == 0 ? 5 : nameHeight;
+	                        axis.model.mergeOption({'nameGap': labelShow ? labelHeight + margin : margin});
+	                        axis.model.mergeOption({'labelHeight': labelHeight});
+
 	                        if (axis.position === 'top') {
 	                            gridRect.y += labelUnionRect.height + margin;
 	                        }
 	                        else if (axis.position === 'left')  {
-	                            gridRect.x += labelUnionRect.width + margin;
+	                            gridRect.x += nameHeight == 0 ? 5 : nameHeight;
 	                        }
+	                        // -- add by dolkkok - #20161220-01 : axisLabel Update --- End
 	                    }
 	                }
 	            });
@@ -25307,6 +25332,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    __webpack_require__(26).register('cartesian2d', Grid);
 
 	    module.exports = Grid;
+
 
 
 /***/ },
@@ -27187,6 +27213,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	        // 文字与轴线距离
 	        nameGap: 15,
 
+	        // -- add by dolkkok - #20161222-01 : axisLabelArea - Height
+	        labelHeight: 0,
+
 	        silent: false, // Default false to support tooltip.
 	        triggerEvent: false, // Default false to avoid legacy user event listener fail.
 
@@ -27312,6 +27341,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        timeAxis: timeAxis,
 	        logAxis: logAxis
 	    };
+
 
 
 /***/ },
