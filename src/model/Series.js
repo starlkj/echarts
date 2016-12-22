@@ -50,6 +50,9 @@ define(function(require) {
              */
             this.seriesIndex = this.componentIndex;
 
+            // -- add by dolkkok - #20161221-01 : originSeriesName 추가
+            this.originSeriesName = option.seriesName;
+
             this.mergeDefaultAndTheme(option, ecModel);
 
             /**

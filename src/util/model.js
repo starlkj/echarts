@@ -137,6 +137,8 @@ define(function(require) {
 
             var seriesIndex = this.seriesIndex;
             var seriesName = this.name;
+            // -- add by dolkkok - #20161221-01 : originSeriesName 추가
+            var originSeriesName =this.originSeriesName || '';
 
             var rawValue = this.getRawValue(dataIndex, dataType);
             var rawDataIndex = data.getRawIndex(dataIndex);
@@ -149,6 +151,8 @@ define(function(require) {
                 seriesType: this.mainType === 'series' ? this.subType : null,
                 seriesIndex: seriesIndex,
                 seriesName: seriesName,
+                // -- add by dolkkok - #20161221-01 : originSeriesName 추가
+                originSeriesName: originSeriesName,
                 name: name,
                 dataIndex: rawDataIndex,
                 data: itemOpt,
