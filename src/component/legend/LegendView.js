@@ -109,7 +109,8 @@ define(function (require) {
                 }
 
                 // Series legend
-                if (seriesModel) {
+                // -- add by dolkkok - #20161223-01 : seriesSync checkc추가
+                if (seriesModel && legendModel.get('seriesSync')) {
                     var data = seriesModel.getData();
                     var color = data.getVisual('color');
 
