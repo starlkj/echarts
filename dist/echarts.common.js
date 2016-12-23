@@ -3659,7 +3659,6 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            var seriesIndex = this.seriesIndex;
 	            var seriesName = this.name;
-	            var originSeriesName =this.originSeriesName || '';
 
 	            var rawValue = this.getRawValue(dataIndex, dataType);
 	            var rawDataIndex = data.getRawIndex(dataIndex);
@@ -3672,8 +3671,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	                seriesType: this.mainType === 'series' ? this.subType : null,
 	                seriesIndex: seriesIndex,
 	                seriesName: seriesName,
-	                // -- add by dolkkok - #20161221-01 : originSeriesName 추가
-	                originSeriesName: originSeriesName,
 	                name: name,
 	                dataIndex: rawDataIndex,
 	                data: itemOpt,
@@ -7257,9 +7254,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	             * @readOnly
 	             */
 	            this.seriesIndex = this.componentIndex;
-
-	            // -- add by dolkkok - #20161221-01 : originSeriesName 추가
-	            this.originSeriesName = option.seriesName;
 
 	            this.mergeDefaultAndTheme(option, ecModel);
 
@@ -27213,7 +27207,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        // 文字与轴线距离
 	        nameGap: 15,
 
-	        // -- add by dolkkok - #20161222-01 : axisLabelArea - Height
+	        // -- add by dolkkok - #20161220-01 : axisLabelArea - Height
 	        labelHeight: 0,
 
 	        silent: false, // Default false to support tooltip.
