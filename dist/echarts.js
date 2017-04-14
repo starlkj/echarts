@@ -47835,13 +47835,20 @@ return /******/ (function(modules) { // webpackBootstrap
 	            }
 
 	            // - add by eltriny
-	            this.pageItems 	= legendModel.get( 'pageItems' );
-	            this.usePage	= false;
-	            this.pageList  	= null;
-	            this.page		= legendModel.get( 'page' );
+	            this.pageItems 	        = legendModel.get( 'pageItems' );
+	            this.usePage	        = false;
+	            this.pageList  	        = null;
+	            // - add by dolkkok
+	            // page영역을 제외한 grid 영역 너비
+	            // 전체page 현재page 값에따라 page영역이 달라진수는 있으나, 최대 너비를 기준으로 계산
+	            this.chartWidth         = api.getWidth() - 120;
+	            // - add by dolkkok
+	            // 범례가 render될때마다 갱신되는 범례영역 너
+	            this.currentLegnedWidth = 0;
+	            this.page		        = legendModel.get( 'page' );
 	            if( 0 != this.pageItems ) {
-	            	this.usePage	= true;
-	            	this.pageList 	= [];
+	            	this.usePage	    = true;
+	            	this.pageList 	    = [];
 	            }
 	            // - add by eltriny
 
@@ -47972,6 +47979,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	            	var _this = this;
 	            	var nTotalPage = this.pageList.length;
+	                // -- add by dolkkok
+	                // #201710413-01 : resize시마다 변경될 수 있는 전체페이지/현재 페이지 체크
+	                if(!this.pageList[ this.page - 1 ]) this.page = nTotalPage;
 
 	            	// 숫자 자릿수 계산
 	            	var tempCurrPage 	= this.page;
@@ -48171,15 +48181,21 @@ return /******/ (function(modules) { // webpackBootstrap
 	            // - add by eltriny
 	            if( this.usePage ) {
 	            	var nPages = this.pageList.length;
-	            	if( 0 == nPages || this.pageItems == this.pageList[ nPages - 1 ].length ) {
+	            	var itemWidth = itemGroup.getBoundingRect().width + legendModel.option.itemGap;
+	                // -- add by dolkkok
+	                // #201710413-02 : 차트화면과 현재까지 추가된 범례사이즈의 너비를 비교후 페이지 지정
+	                if( 0 == nPages ||  this.currentLegnedWidth + itemWidth > this.chartWidth) {
 	            		var currentPage = [];
 	            		currentPage.push( itemGroup );
 	            		this.pageList.push( currentPage );
+	                    if (nPages != 0) this.currentLegnedWidth = 0;
 	            	}
 	            	else {
 	            		var currentPage = this.pageList[ nPages - 1 ];
 	            		currentPage.push( itemGroup );
 	            	}
+	                // -- add by dolkkok
+	                this.currentLegnedWidth += itemWidth;
 	            }
 	            else {
 	            	this.group.add( itemGroup );
