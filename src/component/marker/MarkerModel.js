@@ -36,13 +36,13 @@ define(function (require) {
         /**
          * @return {boolean}
          */
-        ifEnableAnimation: function () {
+        isAnimationEnabled: function () {
             if (env.node) {
                 return false;
             }
 
             var hostSeries = this.__hostSeries;
-            return this.getShallow('animation') && hostSeries && hostSeries.ifEnableAnimation();
+            return this.getShallow('animation') && hostSeries && hostSeries.isAnimationEnabled();
         },
 
         mergeOption: function (newOpt, ecModel, createdBySelf, isInit) {
@@ -73,16 +73,19 @@ define(function (require) {
                                 fillLabel(item);
                             }
                         });
-                        var opt = {
+
+                        markerModel = new MarkerModel(
+                            markerOpt, this, ecModel
+                        );
+
+                        zrUtil.extend(markerModel, {
                             mainType: this.mainType,
                             // Use the same series index and name
                             seriesIndex: seriesModel.seriesIndex,
                             name: seriesModel.name,
                             createdBySelf: true
-                        };
-                        markerModel = new MarkerModel(
-                            markerOpt, this, ecModel, opt
-                        );
+                        });
+
                         markerModel.__hostSeries = seriesModel;
                     }
                     else {
@@ -99,7 +102,7 @@ define(function (require) {
             var formattedValue = zrUtil.isArray(value)
                 ? zrUtil.map(value, addCommas).join(', ') : addCommas(value);
             var name = data.getName(dataIndex);
-            var html = this.name;
+            var html = encodeHTML(this.name);
             if (value != null || name) {
                 html += '<br />';
             }
@@ -110,7 +113,7 @@ define(function (require) {
                 }
             }
             if (value != null) {
-                html += formattedValue;
+                html += encodeHTML(formattedValue);
             }
             return html;
         },

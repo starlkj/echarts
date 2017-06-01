@@ -114,7 +114,7 @@ define(function(require) {
         toggleSelected: function (name) {
             var selected = this.option.selected;
             // Default is true
-            if (!(name in selected)) {
+            if (!selected.hasOwnProperty(name)) {
                 selected[name] = true;
             }
             this[selected[name] ? 'unSelect' : 'select'](name);

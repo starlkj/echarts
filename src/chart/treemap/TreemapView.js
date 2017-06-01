@@ -375,9 +375,9 @@
             }
 
             var rect = new BoundingRect(0, 0, api.getWidth(), api.getHeight());
-            controller.rectProvider = function () {
-                return rect;
-            };
+            controller.setPointerChecker(function (e, x, y) {
+                return rect.contain(x, y);
+            });
         },
 
         /**
@@ -386,7 +386,7 @@
         _clearController: function () {
             var controller = this._controller;
             if (controller) {
-                controller.off('pan').off('zoom');
+                controller.dispose();
                 controller = null;
             }
         },
@@ -532,16 +532,20 @@
          */
         _renderBreadcrumb: function (seriesModel, api, targetInfo) {
             if (!targetInfo) {
-                // Find breadcrumb tail on center of containerGroup.
-                targetInfo = this.findTarget(api.getWidth() / 2, api.getHeight() / 2);
+                targetInfo = seriesModel.get('leafDepth', true) != null
+                    ? {node: seriesModel.getViewRoot()}
+                    // FIXME
+                    // better way?
+                    // Find breadcrumb tail on center of containerGroup.
+                    : this.findTarget(api.getWidth() / 2, api.getHeight() / 2);
 
                 if (!targetInfo) {
                     targetInfo = {node: seriesModel.getData().tree.root};
                 }
             }
 
-            (this._breadcrumb || (this._breadcrumb = new Breadcrumb(this.group, bind(onSelect, this))))
-                .render(seriesModel, api, targetInfo.node);
+            (this._breadcrumb || (this._breadcrumb = new Breadcrumb(this.group)))
+                .render(seriesModel, api, targetInfo.node, bind(onSelect, this));
 
             function onSelect(node) {
                 if (this._state !== 'animating') {
@@ -762,7 +766,7 @@
             var text = nodeModel.get('name');
             if (thisLayout.isLeafRoot) {
                 var iconChar = seriesModel.get('drillDownIcon', true);
-                text = iconChar ? iconChar + ' ' + text : test;
+                text = iconChar ? iconChar + ' ' + text : text;
             }
 
             setText(

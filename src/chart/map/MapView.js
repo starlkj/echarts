@@ -19,11 +19,17 @@ define(function (require) {
 
             var group = this.group;
             group.removeAll();
+
+            if (mapModel.getHostGeoModel()) {
+                return;
+            }
+
             // Not update map if it is an roam action from self
             if (!(payload && payload.type === 'geoRoam'
-                && payload.componentType === 'series'
-                && payload.seriesId === mapModel.id)) {
-
+                    && payload.componentType === 'series'
+                    && payload.seriesId === mapModel.id
+                )
+            ) {
                 if (mapModel.needsDrawMap) {
                     var mapDraw = this._mapDraw || new MapDraw(api, true);
                     group.add(mapDraw.group);
@@ -51,6 +57,11 @@ define(function (require) {
             this._mapDraw && this._mapDraw.remove();
             this._mapDraw = null;
             this.group.removeAll();
+        },
+
+        dispose: function () {
+            this._mapDraw && this._mapDraw.remove();
+            this._mapDraw = null;
         },
 
         _renderSymbols: function (mapModel, ecModel, api) {

@@ -20,7 +20,7 @@ define(function(require) {
             }
             return createListFromArray(option.data, this, ecModel);
         },
-        
+
         brushSelector: 'point',		// add by eltriny - #20161109-01 : [추가] 각 차트별 Brush 기능
 
         defaultOption: {

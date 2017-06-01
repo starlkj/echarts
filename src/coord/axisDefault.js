@@ -35,6 +35,8 @@ define(function (require) {
             show: false
         },
 
+        axisPointer: {},
+
         // 坐标轴线
         axisLine: {
             // 默认显示，属性show控制显示与否
@@ -66,6 +68,8 @@ define(function (require) {
             // 控制文本标签是否在grid里
             inside: false,
             rotate: 0,
+            showMinLabel: null, // true | false | null (auto)
+            showMaxLabel: null, // true | false | null (auto)
             margin: 8,
             // formatter: null,
             // 其余属性默认使用全局文本样式，详见TEXTSTYLE
@@ -107,7 +111,6 @@ define(function (require) {
         // 坐标轴小标记
         axisTick: {
             // If tick is align with label when boundaryGap is true
-            // Default with axisTick
             alignWithLabel: false,
             interval: 'auto'
         },
@@ -142,10 +145,11 @@ define(function (require) {
         min: 'dataMin',
         max: 'dataMax'
     }, valueAxis);
+
     var logAxis = zrUtil.defaults({
+        scale: true,
         logBase: 10
     }, valueAxis);
-    logAxis.scale = true;
 
     return {
         categoryAxis: categoryAxis,

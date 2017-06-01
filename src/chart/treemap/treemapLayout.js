@@ -26,22 +26,22 @@ define(function (require) {
             var ecHeight = api.getHeight();
             var seriesOption = seriesModel.option;
 
-            var size = seriesOption.size || []; // Compatible with ec2.
-            var containerWidth = parsePercent(
-                retrieveValue(seriesOption.width, size[0]),
-                ecWidth
-            );
-            var containerHeight = parsePercent(
-                retrieveValue(seriesOption.height, size[1]),
-                ecHeight
-            );
-
             var layoutInfo = layout.getLayoutRect(
                 seriesModel.getBoxLayoutParams(),
                 {
                     width: api.getWidth(),
                     height: api.getHeight()
                 }
+            );
+
+            var size = seriesOption.size || []; // Compatible with ec2.
+            var containerWidth = parsePercent(
+                retrieveValue(layoutInfo.width, size[0]),
+                ecWidth
+            );
+            var containerHeight = parsePercent(
+                retrieveValue(layoutInfo.height, size[1]),
+                ecHeight
             );
 
             // Fetch payload info.
@@ -301,8 +301,13 @@ define(function (require) {
     function sort(viewChildren, orderBy) {
         if (orderBy) {
             viewChildren.sort(function (a, b) {
-                return orderBy === 'asc'
+                var diff = orderBy === 'asc'
                     ?  a.getValue() - b.getValue() : b.getValue() - a.getValue();
+                return diff === 0
+                    ? (orderBy === 'asc'
+                        ? a.dataIndex - b.dataIndex : b.dataIndex - a.dataIndex
+                    )
+                    : diff;
             });
         }
         return viewChildren;

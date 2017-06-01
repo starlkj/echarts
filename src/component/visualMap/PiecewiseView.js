@@ -10,6 +10,7 @@ define(function(require) {
     var curry = zrUtil.curry;
 
     // Group 설정 -- this 설정 필요
+    // add by dolkkok
     function setGroup() {
         var pageItems = this.pageList[ this.page - 1 ];
         for( var idx = 0, nMax = pageItems.length; idx < nMax; idx++ ) {
@@ -43,17 +44,25 @@ define(function(require) {
             var textFill = textStyleModel.getTextColor();
             var itemAlign = this._getItemAlign();
             var itemSize = visualMapModel.itemSize;
-
             var viewData = this._getViewData();
-            var showLabel = !viewData.endsText;
-            var showEndsText = !showLabel;
+            var endsText = viewData.endsText;
+            var showLabel = zrUtil.retrieve(visualMapModel.get('showLabel', true), !endsText);
 
-            showEndsText && this._renderEndsText(thisGroup, viewData.endsText[0], itemSize);
+            endsText && this._renderEndsText(
+                thisGroup, endsText[0], itemSize, showLabel, itemAlign
+            );
 
             // -- add by dolkkok - #20161219-01 : VisualMap Paging--- Start
             this.pageItems 	= visualMapModel.get( 'pageItems' );
             this.usePage	= false;
             this.pageList  	= null;
+            // - add by dolkkok
+            // page영역을 제외한 grid 영역 너비
+            // 전체page/현재page가 값에따라 page영역이 달라질수는 있으나, 최대 너비를 기준으로 계산
+            this.chartWidth         = api.getWidth() - 100;
+            // - add by dolkkok
+            // 범례가 render될때마다 갱신되는 범례영역 너비
+            this.currentLegnedWidth = 0;
             this.page		= visualMapModel.get( 'page' );
             if( 0 != this.pageItems ) {
                 this.usePage	= true;
@@ -68,6 +77,9 @@ define(function(require) {
 
                 var _this = this;
                 var nTotalPage = this.pageList.length;
+                // -- add by dolkkok
+                // #201710413-01 : resize시마다 변경될 수 있는 전체페이지/현재 페이지 체크
+                if(!this.pageList[ this.page - 1 ]) this.page = nTotalPage;
 
                 // 숫자 자릿수 계산
                 var tempCurrPage 	= this.page;
@@ -162,7 +174,9 @@ define(function(require) {
             }
             // -- add by dolkkok - #20161219-01 : VisualMap Paging --- End
 
-            showEndsText && this._renderEndsText(thisGroup, viewData.endsText[1], itemSize);
+            endsText && this._renderEndsText(
+                thisGroup, endsText[1], itemSize, showLabel, itemAlign
+            );
 
             layout.box(
                 visualMapModel.get('orient'), thisGroup, visualMapModel.get('itemGap')
@@ -206,21 +220,26 @@ define(function(require) {
                 // -- add by dolkkok - #20161219-01 : VisualMap Paging --- Start
                 if( this.usePage ) {
                     var nPages = this.pageList.length;
-                    if( 0 == nPages || this.pageItems == this.pageList[ nPages - 1 ].length ) {
+                    var itemWidth = itemGroup.getBoundingRect().width + visualMapModel.get('itemGap');
+                    // -- add by dolkkok
+                    // #201710413-02 : 차트화면과 현재까지 추가된 범례사이즈의 너비를 비교후 페이지 지정
+                    if( 0 == nPages ||  this.currentLegnedWidth + itemWidth > this.chartWidth) {
                         var currentPage = [];
                         currentPage.push( itemGroup );
                         this.pageList.push( currentPage );
+                        if (nPages != 0) this.currentLegnedWidth = 0;
                     }
                     else {
                         var currentPage = this.pageList[ nPages - 1 ];
                         currentPage.push( itemGroup );
                     }
+                    // -- add by dolkkok
+                    this.currentLegnedWidth += itemWidth;
                 }
                 else {
-                    thisGroup.add( itemGroup );
+                    this.group.add( itemGroup );
                 }
                 // -- add by dolkkok - #20161219-01 : VisualMap Paging --- End
-                //thisGroup.add(itemGroup);
             }
         },
 
@@ -237,7 +256,9 @@ define(function(require) {
 
                 visualMapModel.option.hoverLink && this.api.dispatchAction({
                     type: method,
-                    batch: visualMapModel.findTargetDataIndices(pieceIndex)
+                    batch: helper.convertDataIndex(
+                        visualMapModel.findTargetDataIndices(pieceIndex)
+                    )
                 });
             }
         },
@@ -266,7 +287,7 @@ define(function(require) {
         /**
          * @private
          */
-        _renderEndsText: function (group, text, itemSize) {
+        _renderEndsText: function (group, text, itemSize, showLabel, itemAlign) {
             if (!text) {
                 return;
             }
@@ -276,10 +297,10 @@ define(function(require) {
 
             itemGroup.add(new graphic.Text({
                 style: {
-                    x: itemSize[0] / 2,
+                    x: showLabel ? (itemAlign === 'right' ? itemSize[0] : 0) : itemSize[0] / 2,
                     y: itemSize[1] / 2,
                     textVerticalAlign: 'middle',
-                    textAlign: 'center',
+                    textAlign: showLabel ? itemAlign : 'center',
                     text: text,
                     textFont: textStyleModel.getFont(),
                     fill: textStyleModel.getTextColor()

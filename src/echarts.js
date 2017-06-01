@@ -40,6 +40,8 @@ define(function (require) {
     var ComponentView = require('./view/Component');
     var ChartView = require('./view/Chart');
     var graphic = require('./util/graphic');
+    var modelUtil = require('./util/model');
+    var throttle = require('./util/throttle');
 
     var zrender = require('zrender');
     var zrUtil = require('zrender/core/util');
@@ -48,6 +50,7 @@ define(function (require) {
     var timsort = require('zrender/core/timsort');
 
     var each = zrUtil.each;
+    var parseClassType = ComponentModel.parseClassType;
 
     var PRIORITY_PROCESSOR_FILTER = 1000;
     var PRIORITY_PROCESSOR_STATISTIC = 5000;
@@ -57,6 +60,8 @@ define(function (require) {
     var PRIORITY_VISUAL_GLOBAL = 2000;
     var PRIORITY_VISUAL_CHART = 3000;
     var PRIORITY_VISUAL_COMPONENT = 4000;
+    // FIXME
+    // necessary?
     var PRIORITY_VISUAL_BRUSH = 5000;
 
     // Main process have three entries: `setOption`, `dispatchAction` and `resize`,
@@ -64,11 +69,10 @@ define(function (require) {
     // dispatchAction with updateMethod "none" in main process.
     // This flag is used to carry out this rule.
     // All events will be triggered out side main process (i.e. when !this[IN_MAIN_PROCESS]).
-    var IN_MAIN_PROCESS = '__flag_in_main_process';
-    var HAS_GRADIENT_OR_PATTERN_BG = '_hasGradientOrPatternBg';
-
-
-    var OPTION_UPDATED = '_optionUpdated';
+    var IN_MAIN_PROCESS = '__flagInMainProcess';
+    var HAS_GRADIENT_OR_PATTERN_BG = '__hasGradientOrPatternBg';
+    var OPTION_UPDATED = '__optionUpdated';
+    var ACTION_REG = /^[a-zA-Z0-9_]+$/;
 
     function createRegisterEventWithLowercaseName(method) {
         return function (eventName, handler, context) {
@@ -77,6 +81,7 @@ define(function (require) {
             Eventful.prototype[method].call(this, eventName, handler, context);
         };
     }
+
     /**
      * @module echarts~MessageCenter
      */
@@ -87,10 +92,11 @@ define(function (require) {
     MessageCenter.prototype.off = createRegisterEventWithLowercaseName('off');
     MessageCenter.prototype.one = createRegisterEventWithLowercaseName('one');
     zrUtil.mixin(MessageCenter, Eventful);
+
     /**
      * @module echarts~ECharts
      */
-    function ECharts (dom, theme, opts) {
+    function ECharts(dom, theme, opts) {
         opts = opts || {};
 
         // Get theme by name
@@ -116,10 +122,19 @@ define(function (require) {
          * @type {module:zrender/ZRender}
          * @private
          */
-        this._zr = zrender.init(dom, {
+        var zr = this._zr = zrender.init(dom, {
             renderer: opts.renderer || 'canvas',
-            devicePixelRatio: opts.devicePixelRatio
+            devicePixelRatio: opts.devicePixelRatio,
+            width: opts.width,
+            height: opts.height
         });
+
+        /**
+         * Expect 60 pfs.
+         * @type {Function}
+         * @private
+         */
+        this._throttledZrFlush = throttle.throttle(zrUtil.bind(zr.flush, zr), 17);
 
         /**
          * @type {Object}
@@ -152,16 +167,16 @@ define(function (require) {
         this._componentsMap = {};
 
         /**
-         * @type {module:echarts/ExtensionAPI}
-         * @private
-         */
-        this._api = new ExtensionAPI(this);
-
-        /**
          * @type {module:echarts/CoordinateSystem}
          * @private
          */
         this._coordSysMgr = new CoordinateSystemManager();
+
+        /**
+         * @type {module:echarts/ExtensionAPI}
+         * @private
+         */
+        this._api = createExtensionAPI(this);
 
         Eventful.call(this);
 
@@ -186,7 +201,10 @@ define(function (require) {
         timsort(visualFuncs, prioritySortFunc);
         timsort(dataProcessorFuncs, prioritySortFunc);
 
-        this._zr.animation.on('frame', this._onframe, this);
+        zr.animation.on('frame', this._onframe, this);
+
+        // ECharts instance can be used as value.
+        zrUtil.setAsPrimitive(this);
     }
 
     var echartsProto = ECharts.prototype;
@@ -194,6 +212,7 @@ define(function (require) {
     echartsProto._onframe = function () {
         // Lazy update
         if (this[OPTION_UPDATED]) {
+            var silent = this[OPTION_UPDATED].silent;
 
             this[IN_MAIN_PROCESS] = true;
 
@@ -202,6 +221,10 @@ define(function (require) {
             this[IN_MAIN_PROCESS] = false;
 
             this[OPTION_UPDATED] = false;
+
+            flushPendingActions.call(this, silent);
+
+            triggerUpdatedEvent.call(this, silent);
         }
     };
     /**
@@ -219,13 +242,29 @@ define(function (require) {
     };
 
     /**
+     * Usage:
+     * chart.setOption(option, notMerge, lazyUpdate);
+     * chart.setOption(option, {
+     *     notMerge: ...,
+     *     lazyUpdate: ...,
+     *     silent: ...
+     * });
+     *
      * @param {Object} option
-     * @param {boolean} notMerge
-     * @param {boolean} [lazyUpdate=false] Useful when setOption frequently.
+     * @param {Object|boolean} [opts] opts or notMerge.
+     * @param {boolean} [opts.notMerge=false]
+     * @param {boolean} [opts.lazyUpdate=false] Useful when setOption frequently.
      */
     echartsProto.setOption = function (option, notMerge, lazyUpdate) {
         if (__DEV__) {
             zrUtil.assert(!this[IN_MAIN_PROCESS], '`setOption` should not be called during main process.');
+        }
+
+        var silent;
+        if (zrUtil.isObject(notMerge)) {
+            lazyUpdate = notMerge.lazyUpdate;
+            silent = notMerge.silent;
+            notMerge = notMerge.notMerge;
         }
 
         this[IN_MAIN_PROCESS] = true;
@@ -240,17 +279,21 @@ define(function (require) {
         this._model.setOption(option, optionPreprocessorFuncs);
 
         if (lazyUpdate) {
-            this[OPTION_UPDATED] = true;
+            this[OPTION_UPDATED] = {silent: silent};
+            this[IN_MAIN_PROCESS] = false;
         }
         else {
             updateMethods.prepareAndUpdate.call(this);
-            this._zr.refreshImmediately();
+            // Ensure zr refresh sychronously, and then pixel in canvas can be
+            // fetched after `setOption`.
+            this._zr.flush();
+
             this[OPTION_UPDATED] = false;
+            this[IN_MAIN_PROCESS] = false;
+
+            flushPendingActions.call(this, silent);
+            triggerUpdatedEvent.call(this, silent);
         }
-
-        this[IN_MAIN_PROCESS] = false;
-
-        this._flushPendingActions();
     };
 
     /**
@@ -259,58 +302,58 @@ define(function (require) {
      */
     echartsProto.setShowDataZoom = function(flag){
 
-    	if( this._model && this._model.option ) {
-    		this[IN_MAIN_PROCESS] = true;
+        if( this._model && this._model.option ) {
+            this[IN_MAIN_PROCESS] = true;
 
-    		var arrDataZoom = this._model.option.dataZoom;
-    		for( var idx = 0, nMax = arrDataZoom.length; idx < nMax; idx++ ) {
+            var arrDataZoom = this._model.option.dataZoom;
+            for( var idx = 0, nMax = arrDataZoom.length; idx < nMax; idx++ ) {
 
-    			var tempDataZoom  = arrDataZoom[idx];
-    			if( tempDataZoom.show != flag && 'slider' == tempDataZoom.type ) {
-    				tempDataZoom.show = flag;
-    				if( 'horizontal' == tempDataZoom.orient && 'ph' != tempDataZoom.top ) {
-        				var nMiniMapHeight 	= ( 'ph' == tempDataZoom.height ) ? 30 : +tempDataZoom.height;
-        				var nGridTop 		= this._model.option.grid[0].top;
+                var tempDataZoom  = arrDataZoom[idx];
+                if( tempDataZoom.show != flag && 'slider' == tempDataZoom.type ) {
+                    tempDataZoom.show = flag;
+                    if( 'horizontal' == tempDataZoom.orient && 'ph' != tempDataZoom.top ) {
+                        var nMiniMapHeight 	= ( 'ph' == tempDataZoom.height ) ? 30 : +tempDataZoom.height;
+                        var nGridTop 		= this._model.option.grid[0].top;
 
-        				if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
-        					nGridTop = nGridTop.replace( /%/gi, '' );
-        					nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
-        					this._model.option.grid[0].top = nGridTop;
-        				}
+                        if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
+                            nGridTop = nGridTop.replace( /%/gi, '' );
+                            nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
+                            this._model.option.grid[0].top = nGridTop;
+                        }
 
-    					if( flag ) {
-    						this._model.option.grid[0].top += nMiniMapHeight;
-    					}
-    					else {
-    						this._model.option.grid[0].top -= nMiniMapHeight;
-    					}
-        			}
-        			else if( 'vertical' == tempDataZoom.orient ) {
-        				var nMiniMapWidth = ( 'ph' == tempDataZoom.width ) ? 30 : +tempDataZoom.width;
-        				var nGridRight 	  = this._model.option.grid[0].right;
+                        if( flag ) {
+                            this._model.option.grid[0].top += nMiniMapHeight;
+                        }
+                        else {
+                            this._model.option.grid[0].top -= nMiniMapHeight;
+                        }
+                    }
+                    else if( 'vertical' == tempDataZoom.orient ) {
+                        var nMiniMapWidth = ( 'ph' == tempDataZoom.width ) ? 30 : +tempDataZoom.width;
+                        var nGridRight 	  = this._model.option.grid[0].right;
 
-        				if( 'string' == typeof nGridRight && -1 < nGridRight.indexOf( '%' ) ) {
-        					nGridRight = nGridRight.replace( /%/gi, '' );
-        					nGridRight = this._dom.scrollWidth * ( nGridRight / 100 );
-        					this._model.option.grid[0].right = nGridRight;
-        				}
+                        if( 'string' == typeof nGridRight && -1 < nGridRight.indexOf( '%' ) ) {
+                            nGridRight = nGridRight.replace( /%/gi, '' );
+                            nGridRight = this._dom.scrollWidth * ( nGridRight / 100 );
+                            this._model.option.grid[0].right = nGridRight;
+                        }
 
-    					if( flag ) {
-    						this._model.option.grid[0].right += nMiniMapWidth;
-    					}
-    					else {
-    						this._model.option.grid[0].right -= nMiniMapWidth;
-    					}
-        			}
-    			}	// end if - flag equal zoom.show
+                        if( flag ) {
+                            this._model.option.grid[0].right += nMiniMapWidth;
+                        }
+                        else {
+                            this._model.option.grid[0].right -= nMiniMapWidth;
+                        }
+                    }
+                }	// end if - flag equal zoom.show
 
-    		}	// end for - arrDataZoom
+            }	// end for - arrDataZoom
 
             updateMethods.prepareAndUpdate.call(this);
             this._zr.refreshImmediately();
             this[IN_MAIN_PROCESS] = false;
             this._flushPendingActions();
-    	}	// end - if : valid options
+        }	// end - if : valid options
 
     };
 
@@ -321,57 +364,57 @@ define(function (require) {
      */
     echartsProto.setShowLegend = function( flag ) {
 
-		if( this._model && this._model.option ) {
+        if( this._model && this._model.option ) {
 
-			this[IN_MAIN_PROCESS] = true;
+            this[IN_MAIN_PROCESS] = true;
 
-			var arrLegend = this._model.option.legend;
-			for( var idx1 = 0, nMax1 = arrLegend.length; idx1 < nMax1; idx1++ ) {
+            var arrLegend = this._model.option.legend;
+            for( var idx1 = 0, nMax1 = arrLegend.length; idx1 < nMax1; idx1++ ) {
 
-    			var tempLegend  = arrLegend[idx1];
-    			if( tempLegend.show != flag ) {
-    				tempLegend.show = flag;
-    				var nLegendHeight 	= ( ! tempLegend.height || 'ph' == tempLegend.height ) ? 40 : +tempLegend.height;
-    				var nGridTop 		= this._model.option.grid[0].top;
+                var tempLegend  = arrLegend[idx1];
+                if( tempLegend.show != flag ) {
+                    tempLegend.show = flag;
+                    var nLegendHeight 	= ( ! tempLegend.height || 'ph' == tempLegend.height ) ? 40 : +tempLegend.height;
+                    var nGridTop 		= this._model.option.grid[0].top;
 
-    				if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
-    					nGridTop = nGridTop.replace( /%/gi, '' );
-    					nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
-    					this._model.option.grid[0].top = nGridTop;
-    				}
+                    if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
+                        nGridTop = nGridTop.replace( /%/gi, '' );
+                        nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
+                        this._model.option.grid[0].top = nGridTop;
+                    }
 
-					if( flag ) {
-						this._model.option.grid[0].top += nLegendHeight;
-					}
-					else {
-						this._model.option.grid[0].top -= nLegendHeight;
-					}
+                    if( flag ) {
+                        this._model.option.grid[0].top += nLegendHeight;
+                    }
+                    else {
+                        this._model.option.grid[0].top -= nLegendHeight;
+                    }
 
-					// 상단 DataZoom 위치 조정 - Start
-		    		var arrDataZoom = this._model.option.dataZoom;
-		    		for( var idx2 = 0, nMax2 = arrDataZoom.length; idx2 < nMax2; idx2++ ) {
-		    			var tempDataZoom  = arrDataZoom[idx2];
-	        			if( 'slider' == tempDataZoom.type && 'horizontal' == tempDataZoom.orient ) {
-        					if( flag ) {
-        						tempDataZoom.top += nLegendHeight;
-        					}
-        					else {
-        						tempDataZoom.top -= nLegendHeight;
-        					}
-        					break;
-	        			}	// end if - flag equal zoom.show
-		    		}
-        			// 상단 DataZoom 위치 조정 - End
+                    // 상단 DataZoom 위치 조정 - Start
+                    var arrDataZoom = this._model.option.dataZoom;
+                    for( var idx2 = 0, nMax2 = arrDataZoom.length; idx2 < nMax2; idx2++ ) {
+                        var tempDataZoom  = arrDataZoom[idx2];
+                        if( 'slider' == tempDataZoom.type && 'horizontal' == tempDataZoom.orient ) {
+                            if( flag ) {
+                                tempDataZoom.top += nLegendHeight;
+                            }
+                            else {
+                                tempDataZoom.top -= nLegendHeight;
+                            }
+                            break;
+                        }	// end if - flag equal zoom.show
+                    }
+                    // 상단 DataZoom 위치 조정 - End
 
-    			}	// end if - flag equal zoom.show
+                }	// end if - flag equal zoom.show
 
-    		}	// end for - arrLegend
+            }	// end for - arrLegend
 
-			updateMethods.prepareAndUpdate.call(this);
-			this._zr.refreshImmediately();
-			this[IN_MAIN_PROCESS] = false;
-			this._flushPendingActions();
-		}	// end - if : valid options
+            updateMethods.prepareAndUpdate.call(this);
+            this._zr.refreshImmediately();
+            this[IN_MAIN_PROCESS] = false;
+            this._flushPendingActions();
+        }	// end - if : valid options
 
     };	// func - setShowLegend
 
@@ -382,57 +425,57 @@ define(function (require) {
      */
     echartsProto.setShowVisualMap = function( flag ) {
 
-		if( this._model && this._model.option ) {
+        if( this._model && this._model.option ) {
 
-			this[IN_MAIN_PROCESS] = true;
+            this[IN_MAIN_PROCESS] = true;
 
-			var arrVisualMap = this._model.option.visualMap;
-			for( var idx1 = 0, nMax1 = arrVisualMap.length; idx1 < nMax1; idx1++ ) {
+            var arrVisualMap = this._model.option.visualMap;
+            for( var idx1 = 0, nMax1 = arrVisualMap.length; idx1 < nMax1; idx1++ ) {
 
-    			var tempVisualMap  = arrVisualMap[idx1];
-    			if( tempVisualMap.show != flag ) {
-    				tempVisualMap.show = flag;
-    				var nVisualMapHeight 	= ( ! tempVisualMap.height || 'ph' == tempVisualMap.height ) ? 45 : +tempVisualMap.height;
-    				var nGridTop 			= this._model.option.grid[0].top;
+                var tempVisualMap  = arrVisualMap[idx1];
+                if( tempVisualMap.show != flag ) {
+                    tempVisualMap.show = flag;
+                    var nVisualMapHeight 	= ( ! tempVisualMap.height || 'ph' == tempVisualMap.height ) ? 45 : +tempVisualMap.height;
+                    var nGridTop 			= this._model.option.grid[0].top;
 
-    				if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
-    					nGridTop = nGridTop.replace( /%/gi, '' );
-    					nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
-    					this._model.option.grid[0].top = nGridTop;
-    				}
+                    if( 'string' == typeof nGridTop && -1 < nGridTop.indexOf( '%' ) ) {
+                        nGridTop = nGridTop.replace( /%/gi, '' );
+                        nGridTop = this._dom.scrollHeight * ( nGridTop / 100 );
+                        this._model.option.grid[0].top = nGridTop;
+                    }
 
-					if( flag ) {
-						this._model.option.grid[0].top += nVisualMapHeight;
-					}
-					else {
-						this._model.option.grid[0].top -= nVisualMapHeight;
-					}
+                    if( flag ) {
+                        this._model.option.grid[0].top += nVisualMapHeight;
+                    }
+                    else {
+                        this._model.option.grid[0].top -= nVisualMapHeight;
+                    }
 
-					// 상단 DataZoom 위치 조정 - Start
-		    		var arrDataZoom = this._model.option.dataZoom;
-		    		for( var idx2 = 0, nMax2 = arrDataZoom.length; idx2 < nMax2; idx2++ ) {
-		    			var tempDataZoom  = arrDataZoom[idx2];
-	        			if( 'slider' == tempDataZoom.type && 'horizontal' == tempDataZoom.orient ) {
-        					if( flag ) {
-        						tempDataZoom.top += nVisualMapHeight;
-        					}
-        					else {
-        						tempDataZoom.top -= nVisualMapHeight;
-        					}
-        					break;
-	        			}	// end if - flag equal zoom.show
-		    		}
-        			// 상단 DataZoom 위치 조정 - End
+                    // 상단 DataZoom 위치 조정 - Start
+                    var arrDataZoom = this._model.option.dataZoom;
+                    for( var idx2 = 0, nMax2 = arrDataZoom.length; idx2 < nMax2; idx2++ ) {
+                        var tempDataZoom  = arrDataZoom[idx2];
+                        if( 'slider' == tempDataZoom.type && 'horizontal' == tempDataZoom.orient ) {
+                            if( flag ) {
+                                tempDataZoom.top += nVisualMapHeight;
+                            }
+                            else {
+                                tempDataZoom.top -= nVisualMapHeight;
+                            }
+                            break;
+                        }	// end if - flag equal zoom.show
+                    }
+                    // 상단 DataZoom 위치 조정 - End
 
-    			}	// end if - flag equal zoom.show
+                }	// end if - flag equal zoom.show
 
-    		}	// end for - arrVisualMap
+            }	// end for - arrVisualMap
 
-			updateMethods.prepareAndUpdate.call(this);
-			this._zr.refreshImmediately();
-			this[IN_MAIN_PROCESS] = false;
-			this._flushPendingActions();
-		}	// end - if : valid options
+            updateMethods.prepareAndUpdate.call(this);
+            this._zr.refreshImmediately();
+            this[IN_MAIN_PROCESS] = false;
+            this._flushPendingActions();
+        }	// end - if : valid options
 
     };	// func - setShowVisualMap
 
@@ -446,29 +489,29 @@ define(function (require) {
         var dataZoom 	= null;
         var toolboxView = null;
         for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
-        	var compView = compViews[idx];
-        	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
-        		toolboxView = compView;
-        		break;
-        	}
+            var compView = compViews[idx];
+            if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+                toolboxView = compView;
+                break;
+            }
         }	// for - compViews
 
         if( toolboxView ) {
-        	var compDataZoom = toolboxView._features.dataZoom;
-        	if( compDataZoom ) {
-        		dataZoom = compDataZoom;
-        	}
+            var compDataZoom = toolboxView._features.dataZoom;
+            if( compDataZoom ) {
+                dataZoom = compDataZoom;
+            }
         }
 
         if( dataZoom ) {
-        	var ecModel = this._model;
-        	var api 	= this._api;
-        	dataZoom.onclick(
-        		ecModel,
-        		api,
-        		'zoom',
-        		! dataZoom._isZoomActive
-        	);
+            var ecModel = this._model;
+            var api 	= this._api;
+            dataZoom.onclick(
+                ecModel,
+                api,
+                'zoom',
+                ! dataZoom._isZoomActive
+            );
         }
     };	// func - toggleSelectZoom
 
@@ -482,24 +525,24 @@ define(function (require) {
         var dataZoom 	= null;
         var toolboxView = null;
         for( var idx = 0, nMax = compViews.length; idx < nMax; idx++ ) {
-        	var compView = compViews[idx];
-        	if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
-        		toolboxView = compView;
-        		break;
-        	}
+            var compView = compViews[idx];
+            if( -1 < compView.__id.indexOf( 'toolbox' ) && compView._features ) {
+                toolboxView = compView;
+                break;
+            }
         }	// for - compViews
 
         if( toolboxView ) {
-        	var compDataZoom = toolboxView._features.dataZoom;
-        	if( compDataZoom ) {
-        		dataZoom = compDataZoom;
-        	}
+            var compDataZoom = toolboxView._features.dataZoom;
+            if( compDataZoom ) {
+                dataZoom = compDataZoom;
+            }
         }
 
         if( dataZoom ) {
-        	var ecModel = this._model;
-        	var api 	= this._api;
-        	dataZoom.onclick( ecModel, api, 'back' );
+            var ecModel = this._model;
+            var api 	= this._api;
+            dataZoom.onclick( ecModel, api, 'back' );
         }
 
     };	// func - backSelectZoom
@@ -518,12 +561,12 @@ define(function (require) {
      * -- add by eltriny
      */
     echartsProto.toggleRectBrush = function() {
-    	if( 'rect' != this.__brushType ) {
-    		this.setBrush( 'rect' );
-    	}
-    	else {
-    		this.unsetBrush();
-    	}
+        if( 'rect' != this.__brushType ) {
+            this.setBrush( 'rect' );
+        }
+        else {
+            this.unsetBrush();
+        }
     };	// func - toggleRectBrush
 
     /**
@@ -531,12 +574,12 @@ define(function (require) {
      * -- add by eltriny
      */
     echartsProto.togglePolyBrush = function() {
-    	if( 'polygon' != this.__brushType ) {
-    		this.setBrush( 'polygon' );
-    	}
-    	else {
-    		this.unsetBrush();
-    	}
+        if( 'polygon' != this.__brushType ) {
+            this.setBrush( 'polygon' );
+        }
+        else {
+            this.unsetBrush();
+        }
     };	// func - togglePolyBrush
 
     /**
@@ -544,12 +587,12 @@ define(function (require) {
      * -- add by eltriny
      */
     echartsProto.toggleMultiBrush = function() {
-    	if( 'single' == this.__brushMode ) {
-    		this.setMultipleBrush();
-    	}
-    	else {
-    		this.unsetMultipleBrush();
-    	}
+        if( 'single' == this.__brushMode ) {
+            this.setMultipleBrush();
+        }
+        else {
+            this.unsetMultipleBrush();
+        }
     };	// func - togglePolyBrush
 
     /**
@@ -558,17 +601,17 @@ define(function (require) {
      */
     echartsProto.setBrush = function( type ) {
 
-    	// 설정 저장
-    	this.__brushType = type;
+        // 설정 저장
+        this.__brushType = type;
 
-    	// Brush 클리어
-    	this.clearBrush();
+        // Brush 클리어
+        this.clearBrush();
 
-    	// Tip 비활성화
-    	this._api.dispatchAction( { type: 'disableTip' } );
+        // Tip 비활성화
+        this._api.dispatchAction( { type: 'disableTip' } );
 
-    	// Brush 활성화 및 Chart Cursor Cross 설정
-    	this._api.dispatchAction({
+        // Brush 활성화 및 Chart Cursor Cross 설정
+        this._api.dispatchAction({
             type: 'takeGlobalCursor',
             key	: 'brush',
             brushOption: {
@@ -585,15 +628,15 @@ define(function (require) {
      */
     echartsProto.setMultipleBrush = function() {
 
-    	// 설정 저장
-    	var type = this.__brushType;
-    	this.__brushMode = 'multiple';
+        // 설정 저장
+        var type = this.__brushType;
+        this.__brushMode = 'multiple';
 
-    	// Brush 클리어
-    	this.clearBrush();
+        // Brush 클리어
+        this.clearBrush();
 
-    	// Brush 활성화 및 Chart Cursor Cross 설정
-    	this._api.dispatchAction({
+        // Brush 활성화 및 Chart Cursor Cross 설정
+        this._api.dispatchAction({
             type: 'takeGlobalCursor',
             key	: 'brush',
             brushOption: {
@@ -610,15 +653,15 @@ define(function (require) {
      */
     echartsProto.unsetBrush = function() {
 
-    	// 설정 저장
-    	this.__brushType = null;
-    	this.__brushMode = 'single';
+        // 설정 저장
+        this.__brushType = null;
+        this.__brushMode = 'single';
 
-    	// Brush 클리어
-    	this.clearBrush();
+        // Brush 클리어
+        this.clearBrush();
 
-    	// Chart Cursor 정상화
-    	this._api.dispatchAction({
+        // Chart Cursor 정상화
+        this._api.dispatchAction({
             type: 'takeGlobalCursor',
             key	: 'brush',
             brushOption: {
@@ -627,8 +670,8 @@ define(function (require) {
             }
         });
 
-    	// Tip 활성화
-    	this._api.dispatchAction( { type: 'enableTip' } );
+        // Tip 활성화
+        this._api.dispatchAction( { type: 'enableTip' } );
 
     };	// func - unsetBrush
 
@@ -638,19 +681,19 @@ define(function (require) {
      */
     echartsProto.unsetMultipleBrush = function() {
 
-    	// 설정 저장
-    	var type = this.__brushType;
-    	this.__brushMode = 'single';
+        // 설정 저장
+        var type = this.__brushType;
+        this.__brushMode = 'single';
 
-    	// Brush 활성화 및 Chart Cursor Cross 설정
-    	this._api.dispatchAction({
-    		type: 'takeGlobalCursor',
-    		key	: 'brush',
-    		brushOption: {
-    			brushType: type,
-    			brushMode: 'single'
-    		}
-    	});
+        // Brush 활성화 및 Chart Cursor Cross 설정
+        this._api.dispatchAction({
+            type: 'takeGlobalCursor',
+            key	: 'brush',
+            brushOption: {
+                brushType: type,
+                brushMode: 'single'
+            }
+        });
 
     };	// func - unsetMultipleBrush
 
@@ -660,8 +703,8 @@ define(function (require) {
      */
     echartsProto.clearBrush = function() {
 
-    	// Brush 클리어
-    	this._api.dispatchAction({
+        // Brush 클리어
+        this._api.dispatchAction({
             type: 'brush',
             // Clear all areas of all brush components.
             areas: []
@@ -705,6 +748,13 @@ define(function (require) {
     };
 
     /**
+     * @return {number}
+     */
+    echartsProto.getDevicePixelRatio = function () {
+        return this._zr.painter.dpr || window.devicePixelRatio || 1;
+    };
+
+    /**
      * Get canvas which has all thing rendered
      * @param {Object} opts
      * @param {string} [opts.backgroundColor]
@@ -731,6 +781,7 @@ define(function (require) {
      * @param {string} [opts.type='png']
      * @param {string} [opts.pixelRatio=1]
      * @param {string} [opts.backgroundColor]
+     * @param {string} [opts.excludeComponents]
      */
     echartsProto.getDataURL = function (opts) {
         opts = opts || {};
@@ -784,8 +835,8 @@ define(function (require) {
             var bottom = -MAX_NUMBER;
             var canvasList = [];
             var dpr = (opts && opts.pixelRatio) || 1;
-            for (var id in instances) {
-                var chart = instances[id];
+
+            zrUtil.each(instances, function (chart, id) {
                 if (chart.group === groupId) {
                     var canvas = chart.getRenderedCanvas(
                         zrUtil.clone(opts)
@@ -801,7 +852,7 @@ define(function (require) {
                         top: boundingRect.top
                     });
                 }
-            }
+            });
 
             left *= dpr;
             top *= dpr;
@@ -833,15 +884,191 @@ define(function (require) {
         }
     };
 
-    var updateMethods = {
+    /**
+     * Convert from logical coordinate system to pixel coordinate system.
+     * See CoordinateSystem#convertToPixel.
+     * @param {string|Object} finder
+     *        If string, e.g., 'geo', means {geoIndex: 0}.
+     *        If Object, could contain some of these properties below:
+     *        {
+     *            seriesIndex / seriesId / seriesName,
+     *            geoIndex / geoId, geoName,
+     *            bmapIndex / bmapId / bmapName,
+     *            xAxisIndex / xAxisId / xAxisName,
+     *            yAxisIndex / yAxisId / yAxisName,
+     *            gridIndex / gridId / gridName,
+     *            ... (can be extended)
+     *        }
+     * @param {Array|number} value
+     * @return {Array|number} result
+     */
+    echartsProto.convertToPixel = zrUtil.curry(doConvertPixel, 'convertToPixel');
 
+    /**
+     * Convert from pixel coordinate system to logical coordinate system.
+     * See CoordinateSystem#convertFromPixel.
+     * @param {string|Object} finder
+     *        If string, e.g., 'geo', means {geoIndex: 0}.
+     *        If Object, could contain some of these properties below:
+     *        {
+     *            seriesIndex / seriesId / seriesName,
+     *            geoIndex / geoId / geoName,
+     *            bmapIndex / bmapId / bmapName,
+     *            xAxisIndex / xAxisId / xAxisName,
+     *            yAxisIndex / yAxisId / yAxisName
+     *            gridIndex / gridId / gridName,
+     *            ... (can be extended)
+     *        }
+     * @param {Array|number} value
+     * @return {Array|number} result
+     */
+    echartsProto.convertFromPixel = zrUtil.curry(doConvertPixel, 'convertFromPixel');
+
+    function doConvertPixel(methodName, finder, value) {
+        var ecModel = this._model;
+        var coordSysList = this._coordSysMgr.getCoordinateSystems();
+        var result;
+
+        finder = modelUtil.parseFinder(ecModel, finder);
+
+        for (var i = 0; i < coordSysList.length; i++) {
+            var coordSys = coordSysList[i];
+            if (coordSys[methodName]
+                && (result = coordSys[methodName](ecModel, finder, value)) != null
+            ) {
+                return result;
+            }
+        }
+
+        if (__DEV__) {
+            console.warn(
+                'No coordinate system that supports ' + methodName + ' found by the given finder.'
+            );
+        }
+    }
+
+    /**
+     * Is the specified coordinate systems or components contain the given pixel point.
+     * @param {string|Object} finder
+     *        If string, e.g., 'geo', means {geoIndex: 0}.
+     *        If Object, could contain some of these properties below:
+     *        {
+     *            seriesIndex / seriesId / seriesName,
+     *            geoIndex / geoId / geoName,
+     *            bmapIndex / bmapId / bmapName,
+     *            xAxisIndex / xAxisId / xAxisName,
+     *            yAxisIndex / yAxisId / yAxisName,
+     *            gridIndex / gridId / gridName,
+     *            ... (can be extended)
+     *        }
+     * @param {Array|number} value
+     * @return {boolean} result
+     */
+    echartsProto.containPixel = function (finder, value) {
+        var ecModel = this._model;
+        var result;
+
+        finder = modelUtil.parseFinder(ecModel, finder);
+
+        zrUtil.each(finder, function (models, key) {
+            key.indexOf('Models') >= 0 && zrUtil.each(models, function (model) {
+                var coordSys = model.coordinateSystem;
+                if (coordSys && coordSys.containPoint) {
+                    result |= !!coordSys.containPoint(value);
+                }
+                else if (key === 'seriesModels') {
+                    var view = this._chartsMap[model.__viewId];
+                    if (view && view.containPoint) {
+                        result |= view.containPoint(value, model);
+                    }
+                    else {
+                        if (__DEV__) {
+                            console.warn(key + ': ' + (view
+                                ? 'The found component do not support containPoint.'
+                                : 'No view mapping to the found component.'
+                            ));
+                        }
+                    }
+                }
+                else {
+                    if (__DEV__) {
+                        console.warn(key + ': containPoint is not supported');
+                    }
+                }
+            }, this);
+        }, this);
+
+        return !!result;
+    };
+
+    /**
+     * Get visual from series or data.
+     * @param {string|Object} finder
+     *        If string, e.g., 'series', means {seriesIndex: 0}.
+     *        If Object, could contain some of these properties below:
+     *        {
+     *            seriesIndex / seriesId / seriesName,
+     *            dataIndex / dataIndexInside
+     *        }
+     *        If dataIndex is not specified, series visual will be fetched,
+     *        but not data item visual.
+     *        If all of seriesIndex, seriesId, seriesName are not specified,
+     *        visual will be fetched from first series.
+     * @param {string} visualType 'color', 'symbol', 'symbolSize'
+     */
+    echartsProto.getVisual = function (finder, visualType) {
+        var ecModel = this._model;
+
+        finder = modelUtil.parseFinder(ecModel, finder, {defaultMainType: 'series'});
+
+        var seriesModel = finder.seriesModel;
+
+        if (__DEV__) {
+            if (!seriesModel) {
+                console.warn('There is no specified seires model');
+            }
+        }
+
+        var data = seriesModel.getData();
+
+        var dataIndexInside = finder.hasOwnProperty('dataIndexInside')
+            ? finder.dataIndexInside
+            : finder.hasOwnProperty('dataIndex')
+            ? data.indexOfRawIndex(finder.dataIndex)
+            : null;
+
+        return dataIndexInside != null
+            ? data.getItemVisual(dataIndexInside, visualType)
+            : data.getVisual(visualType);
+    };
+
+    /**
+     * Get view of corresponding component model
+     * @param  {module:echarts/model/Component} componentModel
+     * @return {module:echarts/view/Component}
+     */
+    echartsProto.getViewOfComponentModel = function (componentModel) {
+        return this._componentsMap[componentModel.__viewId];
+    };
+
+    /**
+     * Get view of corresponding series model
+     * @param  {module:echarts/model/Series} seriesModel
+     * @return {module:echarts/view/Chart}
+     */
+    echartsProto.getViewOfSeriesModel = function (seriesModel) {
+        return this._chartsMap[seriesModel.__viewId];
+    };
+
+
+    var updateMethods = {
 
         /**
          * @param {Object} payload
          * @private
          */
         update: function (payload) {
-            // console.time && console.time('update');
+            // console.profile && console.profile('update');
 
             var ecModel = this._model;
             var api = this._api;
@@ -914,10 +1141,13 @@ define(function (require) {
                 }
             }
 
-            // console.time && console.timeEnd('update');
+            each(postUpdateFuncs, function (func) {
+                func(ecModel, api);
+            });
+
+            // console.profile && console.profileEnd('update');
         },
 
-        // PENDING
         /**
          * @param {Object} payload
          * @private
@@ -955,7 +1185,7 @@ define(function (require) {
                 seriesModel.getData().clearAllVisual();
             });
 
-            doVisualEncoding.call(this, ecModel, payload);
+            doVisualEncoding.call(this, ecModel, payload, true);
 
             invokeUpdateMethod.call(this, 'updateVisual', ecModel, payload);
         },
@@ -981,22 +1211,6 @@ define(function (require) {
          * @param {Object} payload
          * @private
          */
-        highlight: function (payload) {
-            toggleHighlight.call(this, 'highlight', payload);
-        },
-
-        /**
-         * @param {Object} payload
-         * @private
-         */
-        downplay: function (payload) {
-            toggleHighlight.call(this, 'downplay', payload);
-        },
-
-        /**
-         * @param {Object} payload
-         * @private
-         */
         prepareAndUpdate: function (payload) {
             var ecModel = this._model;
 
@@ -1009,52 +1223,70 @@ define(function (require) {
     };
 
     /**
-     * @param {Object} payload
      * @private
      */
-    function toggleHighlight(method, payload) {
-        var ecModel = this._model;
+    function updateDirectly(ecIns, method, payload, mainType, subType) {
+        var ecModel = ecIns._model;
 
-        // dispatchAction before setOption
-        if (!ecModel) {
+        // broadcast
+        if (!mainType) {
+            each(ecIns._componentsViews.concat(ecIns._chartsViews), callView);
             return;
         }
 
-        ecModel.eachComponent(
-            {mainType: 'series', query: payload},
-            function (seriesModel, index) {
-                var chartView = this._chartsMap[seriesModel.__viewId];
-                if (chartView && chartView.__alive) {
-                    chartView[method](
-                        seriesModel, ecModel, this._api, payload
-                    );
-                }
-            },
-            this
-        );
+        var query = {};
+        query[mainType + 'Id'] = payload[mainType + 'Id'];
+        query[mainType + 'Index'] = payload[mainType + 'Index'];
+        query[mainType + 'Name'] = payload[mainType + 'Name'];
+
+        var condition = {mainType: mainType, query: query};
+        subType && (condition.subType = subType); // subType may be '' by parseClassType;
+
+        // If dispatchAction before setOption, do nothing.
+        ecModel && ecModel.eachComponent(condition, function (model, index) {
+            callView(ecIns[
+                mainType === 'series' ? '_chartsMap' : '_componentsMap'
+            ][model.__viewId]);
+        }, ecIns);
+
+        function callView(view) {
+            view && view.__alive && view[method] && view[method](
+                view.__model, ecModel, ecIns._api, payload
+            );
+        }
     }
 
     /**
      * Resize the chart
+     * @param {Object} opts
+     * @param {number} [opts.width] Can be 'auto' (the same as null/undefined)
+     * @param {number} [opts.height] Can be 'auto' (the same as null/undefined)
+     * @param {boolean} [opts.silent=false]
      */
-    echartsProto.resize = function () {
+    echartsProto.resize = function (opts) {
         if (__DEV__) {
             zrUtil.assert(!this[IN_MAIN_PROCESS], '`resize` should not be called during main process.');
         }
 
         this[IN_MAIN_PROCESS] = true;
 
-        this._zr.resize();
+        this._zr.resize(opts);
 
         var optionChanged = this._model && this._model.resetOption('media');
-        updateMethods[optionChanged ? 'prepareAndUpdate' : 'update'].call(this);
+        var updateMethod = optionChanged ? 'prepareAndUpdate' : 'update';
+
+        updateMethods[updateMethod].call(this);
 
         // Resize loading effect
         this._loadingFX && this._loadingFX.resize();
 
         this[IN_MAIN_PROCESS] = false;
 
-        this._flushPendingActions();
+        var silent = opts && opts.silent;
+
+        flushPendingActions.call(this, silent);
+
+        triggerUpdatedEvent.call(this, silent);
     };
 
     /**
@@ -1105,30 +1337,57 @@ define(function (require) {
      * @pubilc
      * @param {Object} payload
      * @param {string} [payload.type] Action type
-     * @param {boolean} [silent=false] Whether trigger event.
+     * @param {Object|boolean} [opt] If pass boolean, means opt.silent
+     * @param {boolean} [opt.silent=false] Whether trigger events.
+     * @param {boolean} [opt.flush=undefined]
+     *                  true: Flush immediately, and then pixel in canvas can be fetched
+     *                      immediately. Caution: it might affect performance.
+     *                  false: Not not flush.
+     *                  undefined: Auto decide whether perform flush.
      */
-    echartsProto.dispatchAction = function (payload, silent) {
-        var actionWrap = actions[payload.type];
-        if (!actionWrap) {
-            return;
+    echartsProto.dispatchAction = function (payload, opt) {
+        if (!zrUtil.isObject(opt)) {
+            opt = {silent: !!opt};
         }
 
-        var actionInfo = actionWrap.actionInfo;
-        var updateMethod = actionInfo.update || 'update';
-
-        // if (__DEV__) {
-        //     zrUtil.assert(
-        //         !this[IN_MAIN_PROCESS],
-        //         '`dispatchAction` should not be called during main process.'
-        //         + 'unless updateMathod is "none".'
-        //     );
-        // }
+        if (!actions[payload.type]) {
+            return;
+        }
 
         // May dispatchAction in rendering procedure
         if (this[IN_MAIN_PROCESS]) {
             this._pendingActions.push(payload);
             return;
         }
+
+        doDispatchAction.call(this, payload, opt.silent);
+
+        if (opt.flush) {
+            this._zr.flush(true);
+        }
+        else if (opt.flush !== false && env.browser.weChat) {
+            // In WeChat embeded browser, `requestAnimationFrame` and `setInterval`
+            // hang when sliding page (on touch event), which cause that zr does not
+            // refresh util user interaction finished, which is not expected.
+            // But `dispatchAction` may be called too frequently when pan on touch
+            // screen, which impacts performance if do not throttle them.
+            this._throttledZrFlush();
+        }
+
+        flushPendingActions.call(this, opt.silent);
+
+        triggerUpdatedEvent.call(this, opt.silent);
+    };
+
+    function doDispatchAction(payload, silent) {
+        var payloadType = payload.type;
+        var escapeConnect = payload.escapeConnect;
+        var actionWrap = actions[payloadType];
+        var actionInfo = actionWrap.actionInfo;
+
+        var cptType = (actionInfo.update || 'update').split(':');
+        var updateMethod = cptType.pop();
+        cptType = cptType[0] != null && parseClassType(cptType[0]);
 
         this[IN_MAIN_PROCESS] = true;
 
@@ -1146,22 +1405,28 @@ define(function (require) {
 
         var eventObjBatch = [];
         var eventObj;
-        var isHighlightOrDownplay = payload.type === 'highlight' || payload.type === 'downplay';
-        for (var i = 0; i < payloads.length; i++) {
-            var batchItem = payloads[i];
+        var isHighDown = payloadType === 'highlight' || payloadType === 'downplay';
+
+        each(payloads, function (batchItem) {
             // Action can specify the event by return it.
-            eventObj = actionWrap.action(batchItem, this._model);
+            eventObj = actionWrap.action(batchItem, this._model, this._api);
             // Emit event outside
             eventObj = eventObj || zrUtil.extend({}, batchItem);
             // Convert type to eventType
             eventObj.type = actionInfo.event || eventObj.type;
             eventObjBatch.push(eventObj);
 
-            // Highlight and downplay are special.
-            isHighlightOrDownplay && updateMethods[updateMethod].call(this, batchItem);
-        }
+            // light update does not perform data process, layout and visual.
+            if (isHighDown) {
+                // method, payload, mainType, subType
+                updateDirectly(this, updateMethod, batchItem, 'series');
+            }
+            else if (cptType) {
+                updateDirectly(this, updateMethod, batchItem, cptType.main, cptType.sub);
+            }
+        }, this);
 
-        if (updateMethod !== 'none' && !isHighlightOrDownplay) {
+        if (updateMethod !== 'none' && !isHighDown && !cptType) {
             // Still dirty
             if (this[OPTION_UPDATED]) {
                 // FIXME Pass payload ?
@@ -1176,7 +1441,8 @@ define(function (require) {
         // Follow the rule of action batch
         if (batched) {
             eventObj = {
-                type: actionInfo.event || payload.type,
+                type: actionInfo.event || payloadType,
+                escapeConnect: escapeConnect,
                 batch: eventObjBatch
             };
         }
@@ -1187,18 +1453,19 @@ define(function (require) {
         this[IN_MAIN_PROCESS] = false;
 
         !silent && this._messageCenter.trigger(eventObj.type, eventObj);
+    }
 
-        this._flushPendingActions();
-
-    };
-
-    echartsProto._flushPendingActions = function () {
+    function flushPendingActions(silent) {
         var pendingActions = this._pendingActions;
         while (pendingActions.length) {
             var payload = pendingActions.shift();
-            this.dispatchAction(payload);
+            doDispatchAction.call(this, payload, silent);
         }
-    };
+    }
+
+    function triggerUpdatedEvent(silent) {
+        !silent && this.trigger('updated');
+    }
 
     /**
      * Register event
@@ -1235,6 +1502,11 @@ define(function (require) {
 
         // If use hover layer
         updateHoverLayerStatus(this._zr, ecModel);
+
+        // Post render
+        each(postUpdateFuncs, function (func) {
+            func(ecModel, api);
+        });
     }
 
     /**
@@ -1263,10 +1535,10 @@ define(function (require) {
             }
 
             // Consider: id same and type changed.
-            var viewId = model.id + '_' + model.type;
+            var viewId = '_ec_' + model.id + '_' + model.type;
             var view = viewMap[viewId];
             if (!view) {
-                var classType = ComponentModel.parseClassType(model.type);
+                var classType = parseClassType(model.type);
                 var Clazz = isComponent
                     ? ComponentView.getClass(classType.main, classType.sub)
                     : ChartView.getClass(classType.sub);
@@ -1283,10 +1555,13 @@ define(function (require) {
                 }
             }
 
-            model.__viewId = viewId;
+            model.__viewId = view.__id = viewId;
             view.__alive = true;
-            view.__id = viewId;
             view.__model = model;
+            view.group.__ecComponentInfo = {
+                mainType: model.mainType,
+                index: model.componentIndex
+            };
         }, this);
 
         for (var i = 0; i < viewList.length;) {
@@ -1296,6 +1571,7 @@ define(function (require) {
                 view.dispose(ecModel, this._api);
                 viewList.splice(i, 1);
                 delete viewMap[view.__id];
+                view.__id = view.group.__ecComponentInfo = null;
             }
             else {
                 i++;
@@ -1325,7 +1601,8 @@ define(function (require) {
             var data = series.getData();
             if (stack && data.type === 'list') {
                 var previousStack = stackedDataMap[stack];
-                if (previousStack) {
+                // Avoid conflict with Object.prototype
+                if (stackedDataMap.hasOwnProperty(stack) && previousStack) {
                     data.stackedOn = previousStack;
                 }
                 stackedDataMap[stack] = data;
@@ -1352,16 +1629,19 @@ define(function (require) {
      * Encode visual infomation from data after data processing
      *
      * @param {module:echarts/model/Global} ecModel
+     * @param {object} layout
+     * @param {boolean} [excludesLayout]
      * @private
      */
-    function doVisualEncoding(ecModel, payload) {
+    function doVisualEncoding(ecModel, payload, excludesLayout) {
         var api = this._api;
         ecModel.clearColorPalette();
         ecModel.eachSeries(function (seriesModel) {
             seriesModel.clearColorPalette();
         });
         each(visualFuncs, function (visual) {
-            visual.func(ecModel, api, payload);
+            (!excludesLayout || !visual.isLayout)
+                && visual.func(ecModel, api, payload);
         });
     }
 
@@ -1409,52 +1689,64 @@ define(function (require) {
     }
 
     var MOUSE_EVENT_NAMES = [
-        'click', 'dblclick', 'mouseover', 'mouseout', 'mousemove', 'mousedown', 'mouseup', 'globalout'
+        'click', 'dblclick', 'mouseover', 'mouseout', 'mousemove',
+        'mousedown', 'mouseup', 'globalout', 'contextmenu'
     ];
     /**
      * @private
      */
     echartsProto._initEvents = function () {
 
-    	// add by eltriny - BugFix2 : Drag & Click Conflict
-    	var CLICK_THRESHOLD = 5; // > 4
-    	var mousedownPoint;
+        // add by eltriny - BugFix2 : Drag & Click Conflict
+        var CLICK_THRESHOLD = 5; // > 4
+        var mousedownPoint;
 
         each(MOUSE_EVENT_NAMES, function (eveName) {
             this._zr.on(eveName, function (e) {
 
-            	// add by eltriny - BugFix2 : Drag & Click Conflict ---- Start
-            	if( 'mousedown' == eveName ) {
-            		mousedownPoint = [e.offsetX, e.offsetY];
-            	}
+                // add by eltriny - BugFix2 : Drag & Click Conflict ---- Start
+                if( 'mousedown' == eveName ) {
+                    mousedownPoint = [e.offsetX, e.offsetY];
+                }
 
-            	if( 'click' == eveName ) {
+                if( 'click' == eveName ) {
                     var point = [e.offsetX, e.offsetY];
                     var dist = Math.pow(mousedownPoint[0] - point[0], 2) + Math.pow(mousedownPoint[1] - point[1], 2);
                     if( dist > CLICK_THRESHOLD ) {
-                    	return;
+                        return;
                     }
-            	}
-            	// add by eltriny - BugFix2 : Drag & Click Conflict ---- End
+                }
+                // add by eltriny - BugFix2 : Drag & Click Conflict ---- End
 
                 var ecModel = this.getModel();
                 var el = e.target;
+                var params;
+
                 // -- add by dolkkok - #20161209-01 : 데이터가 아닌 차트영역을 선택했을때 처리 --- Start
                 if(!el) {
                     this.trigger(eveName, null);
                 }
                 // -- add by dolkkok - #20161209-01 : 데이터가 아닌 차트영역을 선택했을때 처리 --- End
-                if (el && el.dataIndex != null) {
+
+                // no e.target when 'globalout'.
+                if (eveName === 'globalout') {
+                    params = {};
+                }
+                else if (el && el.dataIndex != null) {
                     var dataModel = el.dataModel || ecModel.getSeriesByIndex(el.seriesIndex);
-                    var params = dataModel && dataModel.getDataParams(el.dataIndex, el.dataType) || {};
+                    params = dataModel && dataModel.getDataParams(el.dataIndex, el.dataType) || {};
+                }
+                // If element has custom eventData of components
+                else if (el && el.eventData) {
+                    params = zrUtil.extend({}, el.eventData);
+                }
+
+                if (params) {
                     params.event = e;
                     params.type = eveName;
                     this.trigger(eveName, params);
                 }
-                // If element has custom eventData of components
-                else if (el && el.eventData) {
-                    this.trigger(eveName, el.eventData);
-                }
+
             }, this);
         }, this);
 
@@ -1478,6 +1770,7 @@ define(function (require) {
     echartsProto.clear = function () {
         this.setOption({ series: [] }, true);
     };
+
     /**
      * Dispose instance
      */
@@ -1524,6 +1817,7 @@ define(function (require) {
             });
         }
     }
+
     /**
      * Update chart progressive and blend.
      * @param {module:echarts/model/Series|module:echarts/model/Component} model
@@ -1566,6 +1860,7 @@ define(function (require) {
             }
         });
     }
+
     /**
      * @param {module:echarts/model/Series|module:echarts/model/Component} model
      * @param {module:echarts/view/Component|module:echarts/view/Chart} view
@@ -1581,11 +1876,31 @@ define(function (require) {
             }
         });
     }
+
+    function createExtensionAPI(ecInstance) {
+        var coordSysMgr = ecInstance._coordSysMgr;
+        return zrUtil.extend(new ExtensionAPI(ecInstance), {
+            // Inject methods
+            getCoordinateSystems: zrUtil.bind(
+                coordSysMgr.getCoordinateSystems, coordSysMgr
+            ),
+            getComponentByElement: function (el) {
+                while (el) {
+                    var modelInfo = el.__ecComponentInfo;
+                    if (modelInfo != null) {
+                        return ecInstance._model.getComponent(modelInfo.mainType, modelInfo.index);
+                    }
+                    el = el.parent;
+                }
+            }
+        });
+    }
+
     /**
-     * @type {Array.<Function>}
+     * @type {Object} key: actionType.
      * @inner
      */
-    var actions = [];
+    var actions = {};
 
     /**
      * Map eventType to actionType
@@ -1605,6 +1920,12 @@ define(function (require) {
      * @inner
      */
     var optionPreprocessorFuncs = [];
+
+    /**
+     * @type {Array.<Function>}
+     * @inner
+     */
+    var postUpdateFuncs = [];
 
     /**
      * Visual encoding functions of each stage
@@ -1629,6 +1950,7 @@ define(function (require) {
     var idBase = new Date() - 0;
     var groupIdBase = new Date() - 0;
     var DOM_ATTRIBUTE_KEY = '_echarts_instance_';
+
     /**
      * @alias module:echarts
      */
@@ -1636,35 +1958,41 @@ define(function (require) {
         /**
          * @type {number}
          */
-        version: '3.2.3',
+        version: '3.6.1',
         dependencies: {
-            zrender: '3.1.3'
+            zrender: '3.5.1'
         }
     };
 
     function enableConnect(chart) {
-
         var STATUS_PENDING = 0;
         var STATUS_UPDATING = 1;
         var STATUS_UPDATED = 2;
         var STATUS_KEY = '__connectUpdateStatus';
+
         function updateConnectedChartsStatus(charts, status) {
             for (var i = 0; i < charts.length; i++) {
                 var otherChart = charts[i];
                 otherChart[STATUS_KEY] = status;
             }
         }
+
         zrUtil.each(eventActionMap, function (actionType, eventType) {
             chart._messageCenter.on(eventType, function (event) {
                 if (connectedGroups[chart.group] && chart[STATUS_KEY] !== STATUS_PENDING) {
+                    if (event && event.escapeConnect) {
+                        return;
+                    }
+
                     var action = chart.makeActionFromEvent(event);
                     var otherCharts = [];
-                    for (var id in instances) {
-                        var otherChart = instances[id];
+
+                    zrUtil.each(instances, function (otherChart) {
                         if (otherChart !== chart && otherChart.group === chart.group) {
                             otherCharts.push(otherChart);
                         }
-                    }
+                    });
+
                     updateConnectedChartsStatus(otherCharts, STATUS_PENDING);
                     each(otherCharts, function (otherChart) {
                         if (otherChart[STATUS_KEY] !== STATUS_UPDATING) {
@@ -1675,12 +2003,18 @@ define(function (require) {
                 }
             });
         });
-
     }
+
     /**
      * @param {HTMLDomElement} dom
      * @param {Object} [theme]
      * @param {Object} opts
+     * @param {number} [opts.devicePixelRatio] Use window.devicePixelRatio by default
+     * @param {string} [opts.renderer] Currently only 'canvas' is supported.
+     * @param {number} [opts.width] Use clientWidth of the input `dom` by default.
+     *                              Can be 'auto' (the same as null/undefined)
+     * @param {number} [opts.height] Use clientHeight of the input `dom` by default.
+     *                               Can be 'auto' (the same as null/undefined)
      */
     echarts.init = function (dom, theme, opts) {
         if (__DEV__) {
@@ -1693,10 +2027,28 @@ define(function (require) {
                     + echarts.dependencies.zrender + '+'
                 );
             }
+
             if (!dom) {
                 throw new Error('Initialize failed: invalid dom.');
             }
-            if (zrUtil.isDom(dom) && dom.nodeName.toUpperCase() !== 'CANVAS' && (!dom.clientWidth || !dom.clientHeight)) {
+        }
+
+        var existInstance = echarts.getInstanceByDom(dom);
+        if (existInstance) {
+            if (__DEV__) {
+                console.warn('There is a chart instance already initialized on the dom.');
+            }
+            return existInstance;
+        }
+
+        if (__DEV__) {
+            if (zrUtil.isDom(dom)
+                && dom.nodeName.toUpperCase() !== 'CANVAS'
+                && (
+                    (!dom.clientWidth && (!opts || opts.width == null))
+                    || (!dom.clientHeight && (!opts || opts.height == null))
+                )
+            ) {
                 console.warn('Can\'t get dom width or height');
             }
         }
@@ -1705,8 +2057,12 @@ define(function (require) {
         chart.id = 'ec_' + idBase++;
         instances[chart.id] = chart;
 
-        dom.setAttribute &&
+        if (dom.setAttribute) {
             dom.setAttribute(DOM_ATTRIBUTE_KEY, chart.id);
+        }
+        else {
+            dom[DOM_ATTRIBUTE_KEY] = chart.id;
+        }
 
         enableConnect(chart);
 
@@ -1737,6 +2093,7 @@ define(function (require) {
     };
 
     /**
+     * @DEPRECATED
      * @return {string} groupId
      */
     echarts.disConnect = function (groupId) {
@@ -1744,15 +2101,21 @@ define(function (require) {
     };
 
     /**
+     * @return {string} groupId
+     */
+    echarts.disconnect = echarts.disConnect;
+
+    /**
      * Dispose a chart instance
      * @param  {module:echarts~ECharts|HTMLDomElement|string} chart
      */
     echarts.dispose = function (chart) {
-        if (zrUtil.isDom(chart)) {
-            chart = echarts.getInstanceByDom(chart);
-        }
-        else if (typeof chart === 'string') {
+        if (typeof chart === 'string') {
             chart = instances[chart];
+        }
+        else if (!(chart instanceof ECharts)){
+            // Try to treat as dom
+            chart = echarts.getInstanceByDom(chart);
         }
         if ((chart instanceof ECharts) && !chart.isDisposed()) {
             chart.dispose();
@@ -1764,9 +2127,16 @@ define(function (require) {
      * @return {echarts~ECharts}
      */
     echarts.getInstanceByDom = function (dom) {
-        var key = dom.getAttribute(DOM_ATTRIBUTE_KEY);
+        var key;
+        if (dom.getAttribute) {
+            key = dom.getAttribute(DOM_ATTRIBUTE_KEY);
+        }
+        else {
+            key = dom[DOM_ATTRIBUTE_KEY];
+        }
         return instances[key];
     };
+
     /**
      * @param {string} key
      * @return {echarts~ECharts}
@@ -1811,6 +2181,14 @@ define(function (require) {
     };
 
     /**
+     * Register postUpdater
+     * @param {Function} postUpdateFunc
+     */
+    echarts.registerPostUpdate = function (postUpdateFunc) {
+        postUpdateFuncs.push(postUpdateFunc);
+    };
+
+    /**
      * Usage:
      * registerAction('someAction', 'someEvent', function () { ... });
      * registerAction('someAction', function () { ... });
@@ -1840,6 +2218,9 @@ define(function (require) {
         // Event name is all lowercase
         actionInfo.event = (actionInfo.event || actionType).toLowerCase();
         eventName = actionInfo.event;
+
+        // Validate action type and event name.
+        zrUtil.assert(ACTION_REG.test(actionType) && ACTION_REG.test(eventName));
 
         if (!actions[actionType]) {
             actions[actionType] = {action: action, actionInfo: actionInfo};
@@ -1907,60 +2288,58 @@ define(function (require) {
         loadingEffects[name] = loadingFx;
     };
 
-
-    var parseClassType = ComponentModel.parseClassType;
     /**
      * @param {Object} opts
      * @param {string} [superClass]
      */
-    echarts.extendComponentModel = function (opts, superClass) {
-        var Clazz = ComponentModel;
-        if (superClass) {
-            var classType = parseClassType(superClass);
-            Clazz = ComponentModel.getClass(classType.main, classType.sub, true);
-        }
-        return Clazz.extend(opts);
+    echarts.extendComponentModel = function (opts/*, superClass*/) {
+        // var Clazz = ComponentModel;
+        // if (superClass) {
+        //     var classType = parseClassType(superClass);
+        //     Clazz = ComponentModel.getClass(classType.main, classType.sub, true);
+        // }
+        return ComponentModel.extend(opts);
     };
 
     /**
      * @param {Object} opts
      * @param {string} [superClass]
      */
-    echarts.extendComponentView = function (opts, superClass) {
-        var Clazz = ComponentView;
-        if (superClass) {
-            var classType = parseClassType(superClass);
-            Clazz = ComponentView.getClass(classType.main, classType.sub, true);
-        }
-        return Clazz.extend(opts);
+    echarts.extendComponentView = function (opts/*, superClass*/) {
+        // var Clazz = ComponentView;
+        // if (superClass) {
+        //     var classType = parseClassType(superClass);
+        //     Clazz = ComponentView.getClass(classType.main, classType.sub, true);
+        // }
+        return ComponentView.extend(opts);
     };
 
     /**
      * @param {Object} opts
      * @param {string} [superClass]
      */
-    echarts.extendSeriesModel = function (opts, superClass) {
-        var Clazz = SeriesModel;
-        if (superClass) {
-            superClass = 'series.' + superClass.replace('series.', '');
-            var classType = parseClassType(superClass);
-            Clazz = SeriesModel.getClass(classType.main, classType.sub, true);
-        }
-        return Clazz.extend(opts);
+    echarts.extendSeriesModel = function (opts/*, superClass*/) {
+        // var Clazz = SeriesModel;
+        // if (superClass) {
+        //     superClass = 'series.' + superClass.replace('series.', '');
+        //     var classType = parseClassType(superClass);
+        //     Clazz = ComponentModel.getClass(classType.main, classType.sub, true);
+        // }
+        return SeriesModel.extend(opts);
     };
 
     /**
      * @param {Object} opts
      * @param {string} [superClass]
      */
-    echarts.extendChartView = function (opts, superClass) {
-        var Clazz = ChartView;
-        if (superClass) {
-            superClass.replace('series.', '');
-            var classType = parseClassType(superClass);
-            Clazz = ChartView.getClass(classType.main, true);
-        }
-        return Clazz.extend(opts);
+    echarts.extendChartView = function (opts/*, superClass*/) {
+        // var Clazz = ChartView;
+        // if (superClass) {
+        //     superClass = superClass.replace('series.', '');
+        //     var classType = parseClassType(superClass);
+        //     Clazz = ChartView.getClass(classType.main, true);
+        // }
+        return ChartView.extend(opts);
     };
 
     /**
@@ -2003,27 +2382,34 @@ define(function (require) {
     // --------
     // Exports
     // --------
-    //
+    echarts.zrender = zrender;
+
     echarts.List = require('./data/List');
     echarts.Model = require('./model/Model');
+
+    echarts.Axis = require('./coord/Axis');
 
     echarts.graphic = require('./util/graphic');
     echarts.number = require('./util/number');
     echarts.format = require('./util/format');
+    echarts.throttle = throttle.throttle;
     echarts.matrix = require('zrender/core/matrix');
     echarts.vector = require('zrender/core/vector');
     echarts.color = require('zrender/tool/color');
 
     echarts.util = {};
     each([
-            'map', 'each', 'filter', 'indexOf', 'inherits',
-            'reduce', 'filter', 'bind', 'curry', 'isArray',
-            'isString', 'isObject', 'isFunction', 'extend', 'defaults'
+            'map', 'each', 'filter', 'indexOf', 'inherits', 'reduce', 'filter',
+            'bind', 'curry', 'isArray', 'isString', 'isObject', 'isFunction',
+            'extend', 'defaults', 'clone', 'merge'
         ],
         function (name) {
             echarts.util[name] = zrUtil[name];
         }
     );
+
+    echarts.helper = require('./helper');
+
 
     // PRIORITY
     echarts.PRIORITY = {

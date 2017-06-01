@@ -8,6 +8,7 @@ define(function (require) {
     var remRadian = numberUtil.remRadian;
     var isRadianAroundZero = numberUtil.isRadianAroundZero;
     var vec2 = require('zrender/core/vector');
+    var matrix = require('zrender/core/matrix');
     var v2ApplyTransform = vec2.applyTransform;
     var retrieve = zrUtil.retrieve;
 
@@ -55,10 +56,11 @@ define(function (require) {
      * @param {string} [opt.axisLabelShow] default get from axisModel.
      * @param {string} [opt.axisName] default get from axisModel.
      * @param {number} [opt.axisNameAvailableWidth]
-     * @param {number} [opt.labelRotation] by degree, default get from axisModel.
+     * @param {number} [opt.labelRotate] by degree, default get from axisModel.
      * @param {number} [opt.labelInterval] Default label interval when label
      *                                     interval from model is null or 'auto'.
      * @param {number} [opt.strokeContainThreshold] Default label interval when label
+     * @param {number} [opt.nameTruncateMaxWidth]
      */
     var AxisBuilder = function (axisModel, opt) {
 
@@ -171,12 +173,12 @@ define(function (require) {
          */
         axisTick: function () {
             var axisModel = this.axisModel;
+            var axis = axisModel.axis;
 
-            if (!axisModel.get('axisTick.show')) {
+            if (!axisModel.get('axisTick.show') || axis.scale.isBlank()) {
                 return;
             }
 
-            var axis = axisModel.axis;
             var tickModel = axisModel.getModel('axisTick');
             var opt = this.opt;
 
@@ -240,13 +242,13 @@ define(function (require) {
         axisLabel: function () {
             var opt = this.opt;
             var axisModel = this.axisModel;
+            var axis = axisModel.axis;
             var show = retrieve(opt.axisLabelShow, axisModel.get('axisLabel.show'));
 
-            if (!show) {
+            if (!show || axis.scale.isBlank()) {
                 return;
             }
 
-            var axis = axisModel.axis;
             var labelModel = axisModel.getModel('axisLabel');
             var textStyleModel = labelModel.getModel('textStyle');
             var labelMargin = labelModel.get('margin');
@@ -254,49 +256,61 @@ define(function (require) {
             var labels = axisModel.getFormattedLabels();
 
             // Special label rotate.
-            var labelRotation = retrieve(opt.labelRotation, labelModel.get('rotate')) || 0;
-            // To radian.
-            labelRotation = labelRotation * PI / 180;
+            var labelRotation = (
+                retrieve(opt.labelRotate, labelModel.get('rotate')) || 0
+            ) * PI / 180;
 
-            var labelLayout = innerTextLayout(opt, labelRotation, opt.labelDirection);
+            var labelLayout = innerTextLayout(opt.rotation, labelRotation, opt.labelDirection);
             var categoryData = axisModel.get('data');
 
             var textEls = [];
             var silent = isSilent(axisModel);
             var triggerEvent = axisModel.get('triggerEvent');
 
-            for (var i = 0; i < ticks.length; i++) {
-                if (ifIgnoreOnTick(axis, i, opt.labelInterval)) {
-                     continue;
+            zrUtil.each(ticks, function (tickVal, index) {
+                if (ifIgnoreOnTick(axis, index, opt.labelInterval)) {
+                     return;
                 }
 
                 var itemTextStyleModel = textStyleModel;
-                if (categoryData && categoryData[i] && categoryData[i].textStyle) {
+                if (categoryData && categoryData[tickVal] && categoryData[tickVal].textStyle) {
                     itemTextStyleModel = new Model(
-                        categoryData[i].textStyle, textStyleModel, axisModel.ecModel
+                        categoryData[tickVal].textStyle, textStyleModel, axisModel.ecModel
                     );
                 }
                 var textColor = itemTextStyleModel.getTextColor()
                     || axisModel.get('axisLine.lineStyle.color');
 
-                var tickCoord = axis.dataToCoord(ticks[i]);
+                var tickCoord = axis.dataToCoord(tickVal);
                 var pos = [
                     tickCoord,
                     opt.labelOffset + opt.labelDirection * labelMargin
                 ];
-                var labelBeforeFormat = axis.scale.getLabel(ticks[i]);
+                var labelStr = axis.scale.getLabel(tickVal);
 
                 var textEl = new graphic.Text({
 
                     // Id for animation
-                    anid: 'label_' + ticks[i],
+                    anid: 'label_' + tickVal,
 
                     style: {
-                        text: labels[i],
+                        text: labels[index],
                         textAlign: itemTextStyleModel.get('align', true) || labelLayout.textAlign,
-                        textVerticalAlign: itemTextStyleModel.get('baseline', true) || labelLayout.verticalAlign,
+                        textVerticalAlign: itemTextStyleModel.get('baseline', true) || labelLayout.textVerticalAlign,
                         textFont: itemTextStyleModel.getFont(),
-                        fill: typeof textColor === 'function' ? textColor(labelBeforeFormat) : textColor
+                        fill: typeof textColor === 'function'
+                            ? textColor(
+                                // (1) In category axis with data zoom, tick is not the original
+                                // index of axis.data. So tick should not be exposed to user
+                                // in category axis.
+                                // (2) Compatible with previous version, which always returns labelStr.
+                                // But in interval scale labelStr is like '223,445', which maked
+                                // user repalce ','. So we modify it to return original val but remain
+                                // it as 'string' to avoid error in replacing.
+                                axis.type === 'category' ? labelStr : axis.type === 'value' ? tickVal + '' : tickVal,
+                                index
+                            )
+                            : textColor
                     },
                     position: pos,
                     rotation: labelLayout.rotation,
@@ -308,9 +322,8 @@ define(function (require) {
                 if (triggerEvent) {
                     textEl.eventData = makeAxisEventDataBase(axisModel);
                     textEl.eventData.targetType = 'axisLabel';
-                    textEl.eventData.value = labelBeforeFormat;
+                    textEl.eventData.value = labelStr;
                 }
-
 
                 // FIXME
                 this._dumbGroup.add(textEl);
@@ -320,36 +333,10 @@ define(function (require) {
                 this.group.add(textEl);
 
                 textEl.decomposeTransform();
-            }
 
-            function isTwoLabelOverlapped(current, next) {
-                var firstRect = current && current.getBoundingRect().clone();
-                var nextRect = next && next.getBoundingRect().clone();
-                if (firstRect && nextRect) {
-                    firstRect.applyTransform(current.getLocalTransform());
-                    nextRect.applyTransform(next.getLocalTransform());
-                    return firstRect.intersect(nextRect);
-                }
-            }
-            if (axis.type !== 'category') {
-                // If min or max are user set, we need to check
-                // If the tick on min(max) are overlap on their neighbour tick
-                // If they are overlapped, we need to hide the min(max) tick label
-                if (axisModel.getMin ? axisModel.getMin() : axisModel.get('min')) {
-                    var firstLabel = textEls[0];
-                    var nextLabel = textEls[1];
-                    if (isTwoLabelOverlapped(firstLabel, nextLabel)) {
-                        firstLabel.ignore = true;
-                    }
-                }
-                if (axisModel.getMax ? axisModel.getMax() : axisModel.get('max')) {
-                    var lastLabel = textEls[textEls.length - 1];
-                    var prevLabel = textEls[textEls.length - 2];
-                    if (isTwoLabelOverlapped(prevLabel, lastLabel)) {
-                        lastLabel.ignore = true;
-                    }
-                }
-            }
+            }, this);
+
+            fixMinMaxLabelShow(axisModel, textEls);
         },
 
         /**
@@ -392,7 +379,7 @@ define(function (require) {
 
             if (nameLocation === 'middle') {
                 labelLayout = innerTextLayout(
-                    opt,
+                    opt.rotation,
                     nameRotation != null ? nameRotation : opt.rotation, // Adapt to axis.
                     nameDirection
                 );
@@ -415,7 +402,9 @@ define(function (require) {
 
             var truncateOpt = axisModel.get('nameTruncate', true) || {};
             var ellipsis = truncateOpt.ellipsis;
-            var maxWidth = retrieve(truncateOpt.maxWidth, axisNameAvailableWidth);
+            var maxWidth = retrieve(
+                opt.nameTruncateMaxWidth, truncateOpt.maxWidth, axisNameAvailableWidth
+            );
             var truncatedText = (ellipsis != null && maxWidth != null)
                 ? formatUtil.truncateText(
                     name, maxWidth, textFont, ellipsis,
@@ -447,7 +436,7 @@ define(function (require) {
                     fill: textStyleModel.getTextColor()
                         || axisModel.get('axisLine.lineStyle.color'),
                     textAlign: labelLayout.textAlign,
-                    textVerticalAlign: labelLayout.verticalAlign
+                    textVerticalAlign: labelLayout.textVerticalAlign
                 },
                 position: pos,
                 rotation: labelLayout.rotation,
@@ -482,23 +471,33 @@ define(function (require) {
     };
 
     /**
-     * @inner
+     * @public
+     * @static
+     * @param {Object} opt
+     * @param {number} axisRotation in radian
+     * @param {number} textRotation in radian
+     * @param {number} direction
+     * @return {Object} {
+     *  rotation, // according to axis
+     *  textAlign,
+     *  textVerticalAlign
+     * }
      */
-    function innerTextLayout(opt, textRotation, direction) {
-        var rotationDiff = remRadian(textRotation - opt.rotation);
+    var innerTextLayout = AxisBuilder.innerTextLayout = function (axisRotation, textRotation, direction) {
+        var rotationDiff = remRadian(textRotation - axisRotation);
         var textAlign;
-        var verticalAlign;
+        var textVerticalAlign;
 
         if (isRadianAroundZero(rotationDiff)) { // Label is parallel with axis line.
-            verticalAlign = direction > 0 ? 'top' : 'bottom';
+            textVerticalAlign = direction > 0 ? 'top' : 'bottom';
             textAlign = 'center';
         }
         else if (isRadianAroundZero(rotationDiff - PI)) { // Label is inverse parallel with axis line.
-            verticalAlign = direction > 0 ? 'bottom' : 'top';
+            textVerticalAlign = direction > 0 ? 'bottom' : 'top';
             textAlign = 'center';
         }
         else {
-            verticalAlign = 'middle';
+            textVerticalAlign = 'middle';
 
             if (rotationDiff > 0 && rotationDiff < PI) {
                 textAlign = direction > 0 ? 'right' : 'left';
@@ -511,31 +510,28 @@ define(function (require) {
         return {
             rotation: rotationDiff,
             textAlign: textAlign,
-            verticalAlign: verticalAlign
+            textVerticalAlign: textVerticalAlign
         };
-    }
+    };
 
-    /**
-     * @inner
-     */
     function endTextLayout(opt, textPosition, textRotate, extent) {
         var rotationDiff = remRadian(textRotate - opt.rotation);
         var textAlign;
-        var verticalAlign;
+        var textVerticalAlign;
         var inverse = extent[0] > extent[1];
         var onLeft = (textPosition === 'start' && !inverse)
             || (textPosition !== 'start' && inverse);
 
         if (isRadianAroundZero(rotationDiff - PI / 2)) {
-            verticalAlign = onLeft ? 'bottom' : 'top';
+            textVerticalAlign = onLeft ? 'bottom' : 'top';
             textAlign = 'center';
         }
         else if (isRadianAroundZero(rotationDiff - PI * 1.5)) {
-            verticalAlign = onLeft ? 'top' : 'bottom';
+            textVerticalAlign = onLeft ? 'top' : 'bottom';
             textAlign = 'center';
         }
         else {
-            verticalAlign = 'middle';
+            textVerticalAlign = 'middle';
             if (rotationDiff < PI * 1.5 && rotationDiff > PI / 2) {
                 textAlign = onLeft ? 'left' : 'right';
             }
@@ -547,13 +543,10 @@ define(function (require) {
         return {
             rotation: rotationDiff,
             textAlign: textAlign,
-            verticalAlign: verticalAlign
+            textVerticalAlign: textVerticalAlign
         };
     }
 
-    /**
-     * @inner
-     */
     function isSilent(axisModel) {
         var tooltipOpt = axisModel.get('tooltip');
         return axisModel.get('silent')
@@ -562,6 +555,53 @@ define(function (require) {
                 axisModel.get('triggerEvent') || (tooltipOpt && tooltipOpt.show)
             );
     }
+
+    function fixMinMaxLabelShow(axisModel, textEls) {
+        // If min or max are user set, we need to check
+        // If the tick on min(max) are overlap on their neighbour tick
+        // If they are overlapped, we need to hide the min(max) tick label
+        var showMinLabel = axisModel.get('axisLabel.showMinLabel');
+        var showMaxLabel = axisModel.get('axisLabel.showMaxLabel');
+        var firstLabel = textEls[0];
+        var nextLabel = textEls[1];
+        var lastLabel = textEls[textEls.length - 1];
+        var prevLabel = textEls[textEls.length - 2];
+
+        if (showMinLabel === false) {
+            firstLabel.ignore = true;
+        }
+        else if (axisModel.getMin() != null && isTwoLabelOverlapped(firstLabel, nextLabel)) {
+            showMinLabel ? (nextLabel.ignore = true) : (firstLabel.ignore = true);
+        }
+
+        if (showMaxLabel === false) {
+            lastLabel.ignore = true;
+        }
+        else if (axisModel.getMax() != null && isTwoLabelOverlapped(prevLabel, lastLabel)) {
+            showMaxLabel ? (prevLabel.ignore = true) : (lastLabel.ignore = true);
+        }
+    }
+
+    function isTwoLabelOverlapped(current, next, labelLayout) {
+        // current and next has the same rotation.
+        var firstRect = current && current.getBoundingRect().clone();
+        var nextRect = next && next.getBoundingRect().clone();
+
+        if (!firstRect || !nextRect) {
+            return;
+        }
+
+        // When checking intersect of two rotated labels, we use mRotationBack
+        // to avoid that boundingRect is enlarge when using `boundingRect.applyTransform`.
+        var mRotationBack = matrix.identity([]);
+        matrix.rotate(mRotationBack, mRotationBack, -current.rotation);
+
+        firstRect.applyTransform(matrix.mul([], mRotationBack, current.getLocalTransform()));
+        nextRect.applyTransform(matrix.mul([], mRotationBack, next.getLocalTransform()));
+
+        return firstRect.intersect(nextRect);
+    }
+
 
     /**
      * @static

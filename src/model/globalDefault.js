@@ -35,7 +35,7 @@ define(function () {
         // Default is source-over
         blendMode: null,
 
-        animation: true,
+        animation: 'auto',
         animationDuration: 1000,
         animationDurationUpdate: 300,
         animationEasing: 'exponentialOut',
@@ -47,6 +47,13 @@ define(function () {
         progressive: 400,
 
         // Threshold of if use single hover layer to optimize.
-        hoverLayerThreshold: 3000
+        // It is recommended that `hoverLayerThreshold` is equivalent to or less than
+        // `progressiveThreshold`, otherwise hover will cause restart of progressive,
+        // which is unexpected.
+        // see example <echarts/test/heatmap-large.html>.
+        hoverLayerThreshold: 3000,
+
+        // See: module:echarts/scale/Time
+        useUTC: false
     };
 });

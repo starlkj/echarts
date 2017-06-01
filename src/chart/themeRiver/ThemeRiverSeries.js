@@ -24,7 +24,7 @@ define(function (require) {
 
         /**
          * @readOnly
-         * @type {Object}
+         * @type {module:zrender/core/util#HashMap}
          */
         nameMap: null,
 
@@ -38,7 +38,7 @@ define(function (require) {
             // Enable legend selection for each data item
             // Use a function instead of direct access because data reference may changed
             this.legendDataProvider = function () {
-                return this._dataBeforeProcessed;
+                return this.getRawData();
             };
         },
 
@@ -116,9 +116,12 @@ define(function (require) {
 
             var dimensions = [];
 
-            var singleAxisModel = ecModel.getComponent(
-                'singleAxis', this.option.singleAxisIndex
-            );
+            var singleAxisModel = ecModel.queryComponents({
+                mainType: 'singleAxis',
+                index: this.get('singleAxisIndex'),
+                id: this.get('singleAxisId')
+            })[0];
+
             var axisType = singleAxisModel.get('type');
 
             dimensions = [
@@ -141,19 +144,25 @@ define(function (require) {
                 }
             ];
 
-            var data = this.fixData(option.data || []);
+            // filter the data item with the value of label is undefined
+            var filterData = zrUtil.filter(option.data, function (dataItem) {
+                return dataItem[2] !== undefined;
+            });
+
+            var data = this.fixData(filterData || []);
             var nameList = [];
-            var nameMap = this.nameMap = {};
+            var nameMap = this.nameMap = zrUtil.createHashMap();
             var count = 0;
 
             for (var i = 0; i < data.length; ++i) {
                 nameList.push(data[i][DATA_NAME_INDEX]);
-                if (!nameMap[data[i][DATA_NAME_INDEX]]) {
-                    nameMap[data[i][DATA_NAME_INDEX]] = count++;
+                if (!nameMap.get(data[i][DATA_NAME_INDEX])) {
+                    nameMap.set(data[i][DATA_NAME_INDEX], count);
+                    count++;
                 }
             }
 
-            completeDimensions(dimensions, data);
+            dimensions = completeDimensions(dimensions, data);
 
             var list = new List(dimensions, this);
 
@@ -165,7 +174,7 @@ define(function (require) {
         /**
          * Used by single coordinate
          *
-         * @param {string} axisDim  the dimension for singel coordinate
+         * @param {string} axisDim  the dimension for single coordinate
          * @return {Array.<string> } specified dimensions on the axis.
          */
         coordDimToDataDim: function (axisDim) {
@@ -214,71 +223,54 @@ define(function (require) {
         /**
          * Get data indices for show tooltip content
          *
-         * @param {Array.<string>} dim  singel coordinate dimension
-         * @param {Array.<number>} value  coordinate value
+         * @param {Array.<string>|string} dim  single coordinate dimension
+         * @param {number} value axis value
          * @param {module:echarts/coord/single/SingleAxis} baseAxis  single Axis used
          *     the themeRiver.
-         * @return {Array.<number>}
+         * @return {Object} {dataIndices, nestestValue}
          */
-        getAxisTooltipDataIndex: function (dim, value, baseAxis) {
+        getAxisTooltipData: function (dim, value, baseAxis) {
             if (!zrUtil.isArray(dim)) {
                 dim = dim ? [dim] : [];
             }
 
             var data = this.getData();
-
-            if (baseAxis.orient === 'horizontal') {
-                value = value[0];
-            }
-            else {
-                value = value[1];
-            }
-
             var layerSeries = this.getLayerSeries();
             var indices = [];
             var layerNum = layerSeries.length;
+            var nestestValue;
 
             for (var i = 0; i < layerNum; ++i) {
                 var minDist = Number.MAX_VALUE;
                 var nearestIdx = -1;
                 var pointNum = layerSeries[i].indices.length;
                 for (var j = 0; j < pointNum; ++j) {
-                    var dist = Math.abs(data.get(dim[0], layerSeries[i].indices[j]) - value);
+                    var theValue = data.get(dim[0], layerSeries[i].indices[j]);
+                    var dist = Math.abs(theValue - value);
                     if (dist <= minDist) {
+                        nestestValue = theValue;
                         minDist = dist;
                         nearestIdx = layerSeries[i].indices[j];
                     }
                 }
                 indices.push(nearestIdx);
             }
-            return indices;
+
+            return {dataIndices: indices, nestestValue: nestestValue};
         },
 
         /**
          * @override
-         * @param {Array.<number>} dataIndexs  index of data
+         * @param {number} dataIndex  index of data
          */
-        formatTooltip: function (dataIndexs) {
+        formatTooltip: function (dataIndex) {
             var data = this.getData();
-            var len = dataIndexs.length;
-            var time = data.get('time', dataIndexs[0]);
-            var single = this.coordinateSystem;
-            var axis = single.getAxis();
-
-            if (axis.scale.type === 'time') {
-                time = formatUtil.formatTime('yyyy-MM-dd', time);
+            var htmlName = data.get('name', dataIndex);
+            var htmlValue = data.get('value', dataIndex);
+            if (isNaN(htmlValue) || htmlValue == null) {
+                htmlValue = '-';
             }
-
-            var html = time + '<br />';
-            for (var i = 0; i < len; ++i) {
-                var htmlName = data.get('name', dataIndexs[i]);
-                var htmlValue = data.get('value', dataIndexs[i]);
-                if (isNaN(htmlValue) || htmlValue == null) {
-                    htmlValue = '-';
-                }
-                html += encodeHTML(htmlName) + ' : ' + htmlValue + '<br />';
-            }
-            return html;
+            return encodeHTML(htmlName + ' : ' + htmlValue);
         },
 
         defaultOption: {

@@ -5,12 +5,16 @@ define(function(require) {
     var zrUtil = require('zrender/core/util');
 
     var pathTool = require('zrender/tool/path');
-    var round = Math.round;
     var Path = require('zrender/graphic/Path');
     var colorTool = require('zrender/tool/color');
     var matrix = require('zrender/core/matrix');
     var vector = require('zrender/core/vector');
-    var Gradient = require('zrender/graphic/Gradient');
+    var Transformable = require('zrender/mixin/Transformable');
+    var BoundingRect = require('zrender/core/BoundingRect');
+
+    var round = Math.round;
+    var mathMax = Math.max;
+    var mathMin = Math.min;
 
     var graphic = {};
 
@@ -44,7 +48,7 @@ define(function(require) {
 
     graphic.RadialGradient = require('zrender/graphic/RadialGradient');
 
-    graphic.BoundingRect = require('zrender/core/BoundingRect');
+    graphic.BoundingRect = BoundingRect;
 
     /**
      * Extend shape with parameters
@@ -93,7 +97,7 @@ define(function(require) {
                 rect.height = height;
             }
 
-            this.resizePath(path, rect);
+            graphic.resizePath(path, rect);
         }
         return path;
     };
@@ -312,7 +316,11 @@ define(function(require) {
     /**
      * @inner
      */
-    function onElementMouseOver() {
+    function onElementMouseOver(e) {
+        if (this.__hoverSilentOnTouch && e.zrByTouch) {
+            return;
+        }
+
         // Only if element is not in emphasis status
         !this.__isEmphasis && doEnterHover(this);
     }
@@ -320,7 +328,11 @@ define(function(require) {
     /**
      * @inner
      */
-    function onElementMouseOut() {
+    function onElementMouseOut(e) {
+        if (this.__hoverSilentOnTouch && e.zrByTouch) {
+            return;
+        }
+
         // Only if element is not in emphasis status
         !this.__isEmphasis && doLeaveHover(this);
     }
@@ -342,11 +354,25 @@ define(function(require) {
     }
 
     /**
-     * Set hover style of element
+     * Set hover style of element.
+     * This method can be called repeatly without side-effects.
      * @param {module:zrender/Element} el
      * @param {Object} [hoverStyle]
+     * @param {Object} [opt]
+     * @param {boolean} [opt.hoverSilentOnTouch=false]
+     *        In touch device, mouseover event will be trigger on touchstart event
+     *        (see module:zrender/dom/HandlerProxy). By this mechanism, we can
+     *        conviniently use hoverStyle when tap on touch screen without additional
+     *        code for compatibility.
+     *        But if the chart/component has select feature, which usually also use
+     *        hoverStyle, there might be conflict between 'select-highlight' and
+     *        'hover-highlight' especially when roam is enabled (see geo for example).
+     *        In this case, hoverSilentOnTouch should be used to disable hover-highlight
+     *        on touch device.
      */
-    graphic.setHoverStyle = function (el, hoverStyle) {
+    graphic.setHoverStyle = function (el, hoverStyle, opt) {
+        el.__hoverSilentOnTouch = opt && opt.hoverSilentOnTouch;
+
         el.type === 'group'
             ? el.traverse(function (child) {
                 if (child.type !== 'group') {
@@ -354,7 +380,8 @@ define(function(require) {
                 }
             })
             : setElementHoverStl(el, hoverStyle);
-        // Remove previous bound handlers
+
+        // Duplicated function will be auto-ignored, see Eventful.js.
         el.on('mouseover', onElementMouseOver)
           .on('mouseout', onElementMouseOut);
 
@@ -371,14 +398,27 @@ define(function(require) {
      */
     graphic.setText = function (textStyle, labelModel, color) {
         var labelPosition = labelModel.getShallow('position') || 'inside';
+        var labelOffset = labelModel.getShallow('offset');
         var labelColor = labelPosition.indexOf('inside') >= 0 ? 'white' : color;
         var textStyleModel = labelModel.getModel('textStyle');
         zrUtil.extend(textStyle, {
             textDistance: labelModel.getShallow('distance') || 5,
             textFont: textStyleModel.getFont(),
             textPosition: labelPosition,
+            textOffset: labelOffset,
             textFill: textStyleModel.getTextColor() || labelColor
         });
+    };
+
+    graphic.getFont = function (opt, ecModel) {
+        var gTextStyleModel = ecModel && ecModel.getModel('textStyle');
+        return [
+            // FIXME in node-canvas fontWeight is before fontStyle
+            opt.fontStyle || gTextStyleModel && gTextStyleModel.getShallow('fontStyle') || '',
+            opt.fontWeight || gTextStyleModel && gTextStyleModel.getShallow('fontWeight') || '',
+            (opt.fontSize || gTextStyleModel && gTextStyleModel.getShallow('fontSize') || 12) + 'px',
+            opt.fontFamily || gTextStyleModel && gTextStyleModel.getShallow('fontFamily') || 'sans-serif'
+        ].join(' ');
     };
 
     function animateOrSetProps(isUpdate, el, props, animatableModel, dataIndex, cb) {
@@ -386,34 +426,39 @@ define(function(require) {
             cb = dataIndex;
             dataIndex = null;
         }
-        var animationEnabled = animatableModel
-            && (
-                animatableModel.ifEnableAnimation
-                ? animatableModel.ifEnableAnimation()
-                // Directly use animation property
-                : animatableModel.getShallow('animation')
-            );
+        // Do not check 'animation' property directly here. Consider this case:
+        // animation model is an `itemModel`, whose does not have `isAnimationEnabled`
+        // but its parent model (`seriesModel`) does.
+        var animationEnabled = animatableModel && animatableModel.isAnimationEnabled();
 
         if (animationEnabled) {
             var postfix = isUpdate ? 'Update' : '';
-            var duration = animatableModel
-                && animatableModel.getShallow('animationDuration' + postfix);
-            var animationEasing = animatableModel
-                && animatableModel.getShallow('animationEasing' + postfix);
-            var animationDelay = animatableModel
-                && animatableModel.getShallow('animationDelay' + postfix);
+            var duration = animatableModel.getShallow('animationDuration' + postfix);
+            var animationEasing = animatableModel.getShallow('animationEasing' + postfix);
+            var animationDelay = animatableModel.getShallow('animationDelay' + postfix);
             if (typeof animationDelay === 'function') {
-                animationDelay = animationDelay(dataIndex);
+                animationDelay = animationDelay(
+                    dataIndex,
+                    animatableModel.getAnimationDelayParams
+                        ? animatableModel.getAnimationDelayParams(el, dataIndex)
+                        : null
+                );
             }
+            if (typeof duration === 'function') {
+                duration = duration(dataIndex);
+            }
+
             duration > 0
                 ? el.animateTo(props, duration, animationDelay || 0, animationEasing, cb)
-                : (el.attr(props), cb && cb());
+                : (el.stopAnimation(), el.attr(props), cb && cb());
         }
         else {
+            el.stopAnimation();
             el.attr(props);
             cb && cb();
         }
     }
+
     /**
      * Update graphic element properties with or without animation according to the configuration in series
      * @param {module:zrender/Element} el
@@ -466,16 +511,22 @@ define(function(require) {
 
     /**
      * Apply transform to an vertex.
-     * @param {Array.<number>} vertex [x, y]
-     * @param {Array.<number>} transform Transform matrix: like [1, 0, 0, 1, 0, 0]
+     * @param {Array.<number>} target [x, y]
+     * @param {Array.<number>|TypedArray.<number>|Object} transform Can be:
+     *      + Transform matrix: like [1, 0, 0, 1, 0, 0]
+     *      + {position, rotation, scale}, the same as `zrender/Transformable`.
      * @param {boolean=} invert Whether use invert matrix.
      * @return {Array.<number>} [x, y]
      */
-    graphic.applyTransform = function (vertex, transform, invert) {
+    graphic.applyTransform = function (target, transform, invert) {
+        if (transform && !zrUtil.isArrayLike(transform)) {
+            transform = Transformable.getLocalTransform(transform);
+        }
+
         if (invert) {
             transform = matrix.invert([], transform);
         }
-        return vector.applyTransform([], vertex, transform);
+        return vector.applyTransform([], target, transform);
     };
 
     /**
@@ -505,7 +556,8 @@ define(function(require) {
     };
 
     /**
-     * Apply group transition animation from g1 to g2
+     * Apply group transition animation from g1 to g2.
+     * If no animatableModel, no animation.
      */
     graphic.groupTransition = function (g1, g2, animatableModel, cb) {
         if (!g1 || !g2) {
@@ -548,6 +600,44 @@ define(function(require) {
                 // }
             }
         });
+    };
+
+    /**
+     * @param {Array.<Array.<number>>} points Like: [[23, 44], [53, 66], ...]
+     * @param {Object} rect {x, y, width, height}
+     * @return {Array.<Array.<number>>} A new clipped points.
+     */
+    graphic.clipPointsByRect = function (points, rect) {
+        return zrUtil.map(points, function (point) {
+            var x = point[0];
+            x = mathMax(x, rect.x);
+            x = mathMin(x, rect.x + rect.width);
+            var y = point[1];
+            y = mathMax(y, rect.y);
+            y = mathMin(y, rect.y + rect.height);
+            return [x, y];
+        });
+    };
+
+    /**
+     * @param {Object} targetRect {x, y, width, height}
+     * @param {Object} rect {x, y, width, height}
+     * @return {Object} A new clipped rect. If rect size are negative, return undefined.
+     */
+    graphic.clipRectByRect = function (targetRect, rect) {
+        var x = mathMax(targetRect.x, rect.x);
+        var x2 = mathMin(targetRect.x + targetRect.width, rect.x + rect.width);
+        var y = mathMax(targetRect.y, rect.y);
+        var y2 = mathMin(targetRect.y + targetRect.height, rect.y + rect.height);
+
+        if (x2 >= x && y2 >= y) {
+            return {
+                x: x,
+                y: y,
+                width: x2 - x,
+                height: y2 - y
+            };
+        }
     };
 
     return graphic;

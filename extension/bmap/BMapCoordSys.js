@@ -1,6 +1,7 @@
 define(function (require) {
 
     var echarts = require('echarts');
+    var zrUtil = echarts.util;
 
     function BMapCoordSys(bmap, api) {
         this._bmap = bmap;
@@ -8,9 +9,19 @@ define(function (require) {
         this._mapOffset = [0, 0];
 
         this._api = api;
+
+        this._projection = new BMap.MercatorProjection();
     }
 
     BMapCoordSys.prototype.dimensions = ['lng', 'lat'];
+
+    BMapCoordSys.prototype.setZoom = function (zoom) {
+        this._zoom = zoom;
+    };
+
+    BMapCoordSys.prototype.setCenter = function (center) {
+        this._center = this._projection.lngLatToPoint(new BMap.Point(center[0], center[1]));
+    };
 
     BMapCoordSys.prototype.setMapOffset = function (mapOffset) {
         this._mapOffset = mapOffset;
@@ -22,7 +33,16 @@ define(function (require) {
 
     BMapCoordSys.prototype.dataToPoint = function (data) {
         var point = new BMap.Point(data[0], data[1]);
-        // TODO pointToOverlayPixel is toooooooo slow, cache the transform
+        // TODO mercator projection is toooooooo slow
+        // var mercatorPoint = this._projection.lngLatToPoint(point);
+
+        // var width = this._api.getZr().getWidth();
+        // var height = this._api.getZr().getHeight();
+        // var divider = Math.pow(2, 18 - 10);
+        // return [
+        //     Math.round((mercatorPoint.x - this._center.x) / divider + width / 2),
+        //     Math.round((this._center.y - mercatorPoint.y) / divider + height / 2)
+        // ];
         var px = this._bmap.pointToOverlayPixel(point);
         var mapOffset = this._mapOffset;
         return [px.x - mapOffset[0], px.y - mapOffset[1]];
@@ -45,6 +65,38 @@ define(function (require) {
     BMapCoordSys.prototype.getRoamTransform = function () {
         return echarts.matrix.create();
     };
+
+    BMapCoordSys.prototype.prepareCustoms = function (data) {
+        var rect = this.getViewRect();
+        return {
+            coordSys: {
+                // The name exposed to user is always 'cartesian2d' but not 'grid'.
+                type: 'bmap',
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height
+            },
+            api: {
+                coord: zrUtil.bind(this.dataToPoint, this),
+                size: zrUtil.bind(dataToCoordSize, this)
+            }
+        };
+    };
+
+    function dataToCoordSize(dataSize, dataItem) {
+        dataItem = dataItem || [0, 0];
+        return zrUtil.map([0, 1], function (dimIdx) {
+            var val = dataItem[dimIdx];
+            var halfSize = dataSize[dimIdx] / 2;
+            var p1 = [];
+            var p2 = [];
+            p1[dimIdx] = val - halfSize;
+            p2[dimIdx] = val + halfSize;
+            p1[1 - dimIdx] = p2[1 - dimIdx] = dataItem[1 - dimIdx];
+            return Math.abs(this.dataToPoint(p1)[dimIdx] - this.dataToPoint(p2)[dimIdx]);
+        }, this);
+    }
 
     var Overlay;
 
@@ -122,6 +174,9 @@ define(function (require) {
 
             bmapCoordSys = new BMapCoordSys(bmap, api);
             bmapCoordSys.setMapOffset(bmapModel.__mapOffset || [0, 0]);
+            bmapCoordSys.setZoom(zoom);
+            bmapCoordSys.setCenter(center);
+
             bmapModel.coordinateSystem = bmapCoordSys;
         });
 

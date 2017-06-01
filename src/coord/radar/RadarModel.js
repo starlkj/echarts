@@ -29,6 +29,8 @@ define(function (require) {
             var showName = this.get('name.show');
             var nameFormatter = this.get('name.formatter');
             var nameGap = this.get('nameGap');
+            var triggerEvent = this.get('triggerEvent');
+
             var indicatorModels = zrUtil.map(this.get('indicator') || [], function (indicatorOpt) {
                 // PENDING
                 if (indicatorOpt.max != null && indicatorOpt.max > 0 && !indicatorOpt.min) {
@@ -50,24 +52,33 @@ define(function (require) {
                     nameLocation: 'end',
                     nameGap: nameGap,
                     // min: 0,
-                    nameTextStyle: nameTextStyle
+                    nameTextStyle: nameTextStyle,
+                    triggerEvent: triggerEvent
                 }, false);
                 if (!showName) {
                     indicatorOpt.name = '';
                 }
                 if (typeof nameFormatter === 'string') {
-                    indicatorOpt.name = nameFormatter.replace('{value}', indicatorOpt.name);
+                    var indName = indicatorOpt.name;
+                    indicatorOpt.name = nameFormatter.replace('{value}', indName != null ? indName : '');
                 }
                 else if (typeof nameFormatter === 'function') {
                     indicatorOpt.name = nameFormatter(
                         indicatorOpt.name, indicatorOpt
                     );
                 }
-                return zrUtil.extend(
+                var model = zrUtil.extend(
                     new Model(indicatorOpt, null, this.ecModel),
                     axisModelCommonMixin
                 );
+
+                // For triggerEvent.
+                model.mainType = 'radar';
+                model.componentIndex = this.componentIndex;
+
+                return model;
             }, this);
+
             this.getIndicatorModels = function () {
                 return indicatorModels;
             };
