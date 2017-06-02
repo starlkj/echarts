@@ -59,7 +59,7 @@ define(function(require) {
             // - add by dolkkok
             // page영역을 제외한 grid 영역 너비
             // 전체page/현재page가 값에따라 page영역이 달라질수는 있으나, 최대 너비를 기준으로 계산
-            this.chartWidth         = api.getWidth() - 100;
+            this.chartWidth         = this.api.getWidth() - 100;
             // - add by dolkkok
             // 범례가 render될때마다 갱신되는 범례영역 너비
             this.currentLegnedWidth = 0;
