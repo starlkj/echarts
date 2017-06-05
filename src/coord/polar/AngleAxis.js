@@ -25,13 +25,6 @@ define(function(require) {
 
         constructor: AngleAxis,
 
-        /**
-         * @override
-         */
-        pointToData: function (point, clamp) {
-            return this.polar.pointToData(point, clamp)[this.dim === 'radius' ? 0 : 1];
-        },
-
         dataToAngle: Axis.prototype.dataToCoord,
 
         angleToData: Axis.prototype.coordToData

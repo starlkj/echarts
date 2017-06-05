@@ -9,10 +9,11 @@ define(function (require) {
 
         type: 'series.scatter',
 
-        dependencies: ['grid', 'polar', 'geo', 'singleAxis', 'calendar'],
+        dependencies: ['grid', 'polar'],
 
         getInitialData: function (option, ecModel) {
-            return createListFromArray(option.data, this, ecModel);
+            var list = createListFromArray(option.data, this, ecModel);
+            return list;
         },
 
         brushSelector: 'point',

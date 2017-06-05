@@ -88,8 +88,6 @@ define(function (require) {
 
         remove: function (ecModel, api) {
             this._lineDraw && this._lineDraw.remove(api, true);
-        },
-
-        dispose: function () {}
+        }
     });
 });

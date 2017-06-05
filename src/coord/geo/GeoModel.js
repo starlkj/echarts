@@ -36,12 +36,12 @@ define(function (require) {
 
             option.regions = geoCreator.getFilledRegions(option.regions, option.map);
 
-            this._optionModelMap = zrUtil.reduce(option.regions || [], function (optionModelMap, regionOpt) {
+            this._optionModelMap = zrUtil.reduce(option.regions || [], function (obj, regionOpt) {
                 if (regionOpt.name) {
-                    optionModelMap.set(regionOpt.name, new Model(regionOpt, self));
+                    obj[regionOpt.name] = new Model(regionOpt, self);
                 }
-                return optionModelMap;
-            }, zrUtil.createHashMap());
+                return obj;
+            }, {});
 
             this.updateSelectedMap(option.regions);
         },
@@ -79,10 +79,6 @@ define(function (require) {
 
             // Map type
             map: '',
-
-            // Define left-top, right-bottom coords to control view
-            // For example, [ [180, 90], [-180, -90] ]
-            boundingCoords: null,
 
             // Default on center of map
             center: null,
@@ -129,7 +125,7 @@ define(function (require) {
          * @return {module:echarts/model/Model}
          */
         getRegionModel: function (name) {
-            return this._optionModelMap.get(name) || new Model(null, this, this.ecModel);
+            return this._optionModelMap[name];
         },
 
         /**
@@ -139,8 +135,7 @@ define(function (require) {
          * @return {string}
          */
         getFormattedLabel: function (name, status) {
-            var regionModel = this.getRegionModel(name);
-            var formatter = regionModel.get('label.' + status + '.formatter');
+            var formatter = this.get('label.' + status + '.formatter');
             var params = {
                 name: name
             };
@@ -149,8 +144,7 @@ define(function (require) {
                 return formatter(params);
             }
             else if (typeof formatter === 'string') {
-                var serName = params.seriesName;
-                return formatter.replace('{a}', serName != null ? serName : '');
+                return formatter.replace('{a}', params.seriesName);
             }
         },
 

@@ -8,14 +8,12 @@ define(function (require) {
             ['shadowBlur'],
             ['shadowOffsetX'],
             ['shadowOffsetY'],
-            ['shadowColor'],
-            ['textPosition'],
-            ['textAlign']
+            ['shadowColor']
         ]
     );
     return {
-        getItemStyle: function (excludes, includes) {
-            var style = getItemStyle.call(this, excludes, includes);
+        getItemStyle: function (excludes) {
+            var style = getItemStyle.call(this, excludes);
             var lineDash = this.getBorderLineDash();
             lineDash && (style.lineDash = lineDash);
             return style;

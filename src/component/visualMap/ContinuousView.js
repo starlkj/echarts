@@ -8,7 +8,6 @@ define(function(require) {
     var LinearGradient = require('zrender/graphic/LinearGradient');
     var helper = require('./helper');
     var modelUtil = require('../../util/model');
-    var eventTool = require('zrender/core/event');
 
     var linearMap = numberUtil.linearMap;
     var each = zrUtil.each;
@@ -231,10 +230,6 @@ define(function(require) {
             var handleLabel = new graphic.Text({
                 draggable: true,
                 drift: onDrift,
-                onmousemove: function (e) {
-                    // Fot mobile devicem, prevent screen slider on the button.
-                    eventTool.stop(e.event);
-                },
                 ondragend: onDragEnd,
                 style: {
                     x: 0, y: 0, text: '',
@@ -355,18 +350,16 @@ define(function(require) {
             delta = delta || 0;
             var visualMapModel = this.visualMapModel;
             var handleEnds = this._handleEnds;
-            var sizeExtent = [0, visualMapModel.itemSize[1]];
 
             sliderMove(
                 delta,
                 handleEnds,
-                sizeExtent,
-                handleIndex,
-                // cross is forbiden
-                0
+                [0, visualMapModel.itemSize[1]],
+                handleIndex === 'all' ? 'rigid' : 'push',
+                handleIndex
             );
-
             var dataExtent = visualMapModel.getExtent();
+            var sizeExtent = [0, visualMapModel.itemSize[1]];
             // Update data interval.
             this._dataInterval = [
                 linearMap(handleEnds[0], sizeExtent, dataExtent, true),
@@ -693,8 +686,8 @@ define(function(require) {
             }
 
             var resultBatches = modelUtil.compressBatches(oldBatch, newBatch);
-            this._dispatchHighDown('downplay', helper.convertDataIndex(resultBatches[0]));
-            this._dispatchHighDown('highlight', helper.convertDataIndex(resultBatches[1]));
+            this._dispatchHighDown('downplay', resultBatches[0]);
+            this._dispatchHighDown('highlight', resultBatches[1]);
         },
 
         /**
@@ -702,20 +695,14 @@ define(function(require) {
          */
         _hoverLinkFromSeriesMouseOver: function (e) {
             var el = e.target;
-            var visualMapModel = this.visualMapModel;
 
             if (!el || el.dataIndex == null) {
                 return;
             }
 
-            var dataModel = this.ecModel.getSeriesByIndex(el.seriesIndex);
-
-            if (!visualMapModel.isTargetSeries(dataModel)) {
-                return;
-            }
-
+            var dataModel = el.dataModel || this.ecModel.getSeriesByIndex(el.seriesIndex);
             var data = dataModel.getData(el.dataType);
-            var dim = data.getDimension(visualMapModel.getDataDimension(data));
+            var dim = data.getDimension(this.visualMapModel.getDataDimension(data));
             var value = data.get(dim, el.dataIndex, true);
 
             if (!isNaN(value)) {
@@ -740,7 +727,7 @@ define(function(require) {
 
             var indices = this._hoverLinkDataIndices;
 
-            this._dispatchHighDown('downplay', helper.convertDataIndex(indices));
+            this._dispatchHighDown('downplay', indices);
 
             indices.length = 0;
         },
@@ -801,10 +788,6 @@ define(function(require) {
             draggable: !!onDrift,
             cursor: cursor,
             drift: onDrift,
-            onmousemove: function (e) {
-                // Fot mobile devicem, prevent screen slider on the button.
-                eventTool.stop(e.event);
-            },
             ondragend: onDragEnd
         });
     }

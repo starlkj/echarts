@@ -13,20 +13,19 @@ define(function (require) {
         'splitLine', 'splitArea'
     ];
 
-    require('./AxisView').extend({
+    require('../../echarts').extendComponentView({
 
         type: 'radiusAxis',
-
-        axisPointerClass: 'PolarAxisPointer',
 
         render: function (radiusAxisModel, ecModel) {
             this.group.removeAll();
             if (!radiusAxisModel.get('show')) {
                 return;
             }
+            var polarModel = ecModel.getComponent('polar', radiusAxisModel.get('polarIndex'));
+            var angleAxis = polarModel.coordinateSystem.getAngleAxis();
             var radiusAxis = radiusAxisModel.axis;
-            var polar = radiusAxis.polar;
-            var angleAxis = polar.getAngleAxis();
+            var polar = polarModel.coordinateSystem;
             var ticksCoords = radiusAxis.getTicksCoords();
             var axisAngle = angleAxis.getExtent()[0];
             var radiusExtent = radiusAxis.getExtent();
@@ -37,7 +36,7 @@ define(function (require) {
             this.group.add(axisBuilder.getGroup());
 
             zrUtil.each(selfBuilderAttrs, function (name) {
-                if (radiusAxisModel.get(name +'.show') && !radiusAxis.scale.isBlank()) {
+                if (radiusAxisModel.get(name +'.show')) {
                     this['_' + name](radiusAxisModel, polar, axisAngle, radiusExtent, ticksCoords);
                 }
             }, this);
@@ -137,7 +136,7 @@ define(function (require) {
             labelDirection: -1,
             tickDirection: -1,
             nameDirection: 1,
-            labelRotate: radiusAxisModel.getModel('axisLabel').get('rotate'),
+            labelRotation: radiusAxisModel.getModel('axisLabel').get('rotate'),
             // Over splitLine and splitArea
             z2: 1
         };

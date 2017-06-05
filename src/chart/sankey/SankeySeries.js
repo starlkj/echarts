@@ -6,7 +6,6 @@ define(function (require) {
 
     var SeriesModel = require('../../model/Series');
     var createGraphFromNodeEdge = require('../helper/createGraphFromNodeEdge');
-    var encodeHTML = require('../../util/format').encodeHTML;
 
     var SankeySeries = SeriesModel.extend({
 
@@ -59,7 +58,7 @@ define(function (require) {
                 if (params.value) {
                     html += ' : ' + params.value;
                 }
-                return encodeHTML(html);
+                return html;
             }
 
             return SankeySeries.superCall(this, 'formatTooltip', dataIndex, multipleSeries);

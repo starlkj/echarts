@@ -53,7 +53,7 @@ define(function (require) {
                 var mpModel = seriesModel.markPointModel;
                 if (mpModel) {
                     updateMarkerLayout(mpModel.getData(), seriesModel, api);
-                    this.markerGroupMap.get(seriesModel.name).updateLayout(mpModel);
+                    this.markerGroupMap[seriesModel.name].updateLayout(mpModel);
                 }
             }, this);
         },
@@ -64,8 +64,10 @@ define(function (require) {
             var seriesData = seriesModel.getData();
 
             var symbolDrawMap = this.markerGroupMap;
-            var symbolDraw = symbolDrawMap.get(seriesName)
-                || symbolDrawMap.set(seriesName, new SymbolDraw());
+            var symbolDraw = symbolDrawMap[seriesName];
+            if (!symbolDraw) {
+                symbolDraw = symbolDrawMap[seriesName] = new SymbolDraw();
+            }
 
             var mpData = createList(coordSys, seriesModel, mpModel);
 

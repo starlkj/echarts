@@ -9,7 +9,7 @@ define(function (require) {
         getInitialData: function (option, ecModel) {
             return createListFromArray(option.data, this, ecModel);
         },
-
+        
         // add by eltriny - #20161109-01 : [추가] 각 차트별 Brush 기능
         brushSelector: 'rect',
 

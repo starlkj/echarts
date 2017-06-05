@@ -50,12 +50,12 @@ define(function (require) {
         brushMode: 'single',
         removeOnClick: false
     };
-
+    
     // add by eltriny
     // BrushController Type
     var BRUSH_TYPE = {
-        SELECT : 'SELECT_BRUSH',
-        ZOOM   : 'ZOOM_BRUSH'
+    	SELECT : 'SELECT_BRUSH',
+    	ZOOM   : 'ZOOM_BRUSH'
     };
 
     var baseUID = 0;
@@ -83,10 +83,10 @@ define(function (require) {
         }
 
         Eventful.call(this);
-
+        
         /**
          * add by eltriny
-         *
+         * 
          * type : SELECT_BRUSH, ZOOM_BRUSH
          */
         this._type = type;
@@ -206,7 +206,7 @@ define(function (require) {
             if (__DEV__) {
                 zrUtil.assert(this._mounted);
             }
-
+           
             this._brushType && doDisableBrush(this);
             brushOption.brushType && doEnableBrush(this, brushOption);
 
@@ -333,7 +333,7 @@ define(function (require) {
                     var cover = newCovers[newIndex] = oldIndex != null
                         ? (
                             oldCovers[oldIndex].__brushOption = newBrushOption,
-                                oldCovers[oldIndex]
+                            oldCovers[oldIndex]
                         )
                         : endCreating(controller, createCover(controller, newBrushOption));
                     updateCoverAfterCreation(controller, cover);
@@ -844,8 +844,8 @@ define(function (require) {
             resetCursor(this, e);
 
             if (this._dragging) {
-
-                this._isMouseMove = true;
+            	
+            	this._isMouseMove = true;
 
                 preventDefault(e);
 
@@ -861,77 +861,77 @@ define(function (require) {
         // in tooltip, globalout should not be triggered.
         // globalout: handleDragEnd
     };
-
+    
     // renewal by eltriny
     function handleDragEnd(evt) {
-
+    	
         if (this._dragging) {
 
             preventDefault(evt);
-
-            var isClick 	= true;
-            var isDragEnd 	= false;
-
+            
+        	var isClick 	= true;
+        	var isDragEnd 	= false;
+        	
             if( this._isMouseMove ) {
-
-                // console.info( 'brushController - drag' );
-
-                // 추가 파라메터 정의
-                isClick 	= false;
-                isDragEnd 	= true;
-
-                // add by eltriny
-                // 요청사항 : Brush - select 그려지고 나서 자동적으로 brush 표시가 지워지도록 처리 필요
-                /*
-                 if( BRUSH_TYPE.SELECT == this._type
-                 && this._brushOption.brushMode === 'single' ) {
-                 clearCovers( this );	// this == controller
-                 }
-                 */
+            	
+            	// console.info( 'brushController - drag' );
+            	
+            	// 추가 파라메터 정의
+            	isClick 	= false;
+            	isDragEnd 	= true;
+            	
+            	// add by eltriny 
+            	// 요청사항 : Brush - select 그려지고 나서 자동적으로 brush 표시가 지워지도록 처리 필요
+            	/*
+                if( BRUSH_TYPE.SELECT == this._type 
+                		&& this._brushOption.brushMode === 'single' ) {
+                	clearCovers( this );	// this == controller	
+                }
+                */
 
             }
             else {
-
-                if( BRUSH_TYPE.ZOOM == this._type ) {
-                    // console.info( 'brushController - click' );
-
-                    // 추가 파라메터 정의
-                    isClick 	= true;
-                    isDragEnd 	= false;
-
-                    // event 변경
-                    evt.offsetX += 300;
-                    evt.offsetY += 300;
-                }
-
+            	
+            	if( BRUSH_TYPE.ZOOM == this._type ) {
+            		// console.info( 'brushController - click' );
+            		
+            		// 추가 파라메터 정의
+            		isClick 	= true;
+            		isDragEnd 	= false;
+            		
+            		// event 변경
+            		evt.offsetX += 300;
+            		evt.offsetY += 300;
+            	}
+            	
             }
-
+            
             var eventParams = updateCoverByMouse(this, evt, true);
-
+            
             this._dragging = false;
             this._track = [];
             this._creatingCover = null;
-
+            
             // add by eltriny
             this._isMouseMove = false;
-
+            
             // trigger event shoule be at final, after procedure will be nested.
             if( eventParams ) {
-                eventParams.isClick 	= isClick;
-                eventParams.isDragEnd 	= isDragEnd;
-                trigger(this, eventParams );
+            	eventParams.isClick 	= isClick;
+            	eventParams.isDragEnd 	= isDragEnd; 
+            	trigger(this, eventParams );	
             }
-
-            // add by eltriny
-            // 요청사항 : Brush - select 그려지고 나서 자동적으로 brush 표시가 지워지도록 처리 필요
-            // edit by eltriny - #20161018-01 : 차트 새로고침 시 클리어가 안되는 문제 수정
-            if( BRUSH_TYPE.SELECT == this._type
-                && this._brushOption.brushMode === 'single' ) {
-                clearCovers( this );	// this == controller
+            
+        	// add by eltriny 
+        	// 요청사항 : Brush - select 그려지고 나서 자동적으로 brush 표시가 지워지도록 처리 필요
+            // edit by eltriny - #20161018-01 : 차트 새로고침 시 클리어가 안되는 문제 수정 
+            if( BRUSH_TYPE.SELECT == this._type 
+            		&& this._brushOption.brushMode === 'single' ) {
+            	clearCovers( this );	// this == controller	
             }
-
+            
         }
-
+        
     }
     /**
      * key: brushType

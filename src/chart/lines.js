@@ -7,7 +7,4 @@ define(function (require) {
     echarts.registerLayout(
         require('./lines/linesLayout')
     );
-    echarts.registerVisual(
-        require('./lines/linesVisual')
-    );
 });

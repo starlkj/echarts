@@ -1,8 +1,8 @@
 define(function (require) {
 
-    var zrUtil = require('zrender/core/util');
-    var retrieve = require('zrender/core/util').retrieve;
-    var parsePercent = require('../../util/number').parsePercent;
+    var CANDLE_MIN_WIDTH = 2;
+    var CANDLE_MIN_NICE_WIDTH = 5;
+    var GPA_MIN = 4;
 
     return function (ecModel) {
 
@@ -10,33 +10,18 @@ define(function (require) {
 
             var coordSys = seriesModel.coordinateSystem;
             var data = seriesModel.getData();
-            var candleWidth = calculateCandleWidth(seriesModel, data);
+            var dimensions = seriesModel.dimensions;
             var chartLayout = seriesModel.get('layout');
-            var variableDim = chartLayout === 'horizontal' ? 0 : 1;
-            var constDim = 1 - variableDim;
-            var coordDims = ['x', 'y'];
-            var vDims = [];
-            var cDim;
 
-            zrUtil.each(data.dimensions, function (dimName) {
-                var dimInfo = data.getDimensionInfo(dimName);
-                var coordDim = dimInfo.coordDim;
-                if (coordDim === coordDims[constDim]) {
-                    vDims.push(dimName);
-                }
-                else if (coordDim === coordDims[variableDim]) {
-                    cDim = dimName;
-                }
-            });
+            var candleWidth = calculateCandleWidth(seriesModel, data);
 
-            if (cDim == null || vDims.length < 4) {
-                return;
-            }
-
-            data.each([cDim].concat(vDims), function () {
+            data.each(dimensions, function () {
                 var args = arguments;
+                var dimLen = dimensions.length;
                 var axisDimVal = args[0];
-                var idx = args[vDims.length + 1];
+                var idx = args[dimLen];
+                var variableDim = chartLayout === 'horizontal' ? 0 : 1;
+                var constDim = 1 - variableDim;
 
                 var openVal = args[1];
                 var closeVal = args[2];
@@ -119,19 +104,16 @@ define(function (require) {
                 Math.abs(extent[1] - extent[0]) / data.count()
             );
 
-        var barMaxWidth = parsePercent(
-            retrieve(seriesModel.get('barMaxWidth'), bandWidth),
-            bandWidth
-        );
-        var barMinWidth = parsePercent(
-            retrieve(seriesModel.get('barMinWidth'), 1),
-            bandWidth
-        );
-        var barWidth = seriesModel.get('barWidth');
-        return barWidth != null
-            ? parsePercent(barWidth, bandWidth)
-            // Put max outer to ensure bar visible in spite of overlap.
-            : Math.max(Math.min(bandWidth / 2, barMaxWidth), barMinWidth);
+        // Half band width is perfect when space is enouph, otherwise
+        // try not to be smaller than CANDLE_MIN_NICE_WIDTH (and only
+        // gap is compressed), otherwise ensure not to be smaller than
+        // CANDLE_MIN_WIDTH in spite of overlap.
+
+        return bandWidth / 2 - 2 > CANDLE_MIN_NICE_WIDTH // "- 2" is minus border width
+            ? bandWidth / 2 - 2
+            : bandWidth - CANDLE_MIN_NICE_WIDTH > GPA_MIN
+            ? CANDLE_MIN_NICE_WIDTH
+            : Math.max(bandWidth - GPA_MIN, CANDLE_MIN_WIDTH);
     }
 
 });

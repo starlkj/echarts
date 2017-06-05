@@ -20,7 +20,7 @@ define(function (require) {
          * @type {string}
          * @readOnly
          */
-        this.dimension = 'single';
+        this.dimension = 'x';
 
         /**
          * Add it just for draw tooltip.
@@ -28,7 +28,7 @@ define(function (require) {
          * @type {Array.<string>}
          * @readOnly
          */
-        this.dimensions = ['single'];
+        this.dimensions = ['x'];
 
         /**
          * @private
@@ -47,14 +47,12 @@ define(function (require) {
         /**
          * @type {module:echarts/coord/single/AxisModel}
          */
-        this.model = axisModel;
+        this._model = axisModel;
     }
 
     Single.prototype = {
 
         type: 'singleAxis',
-
-        axisPointerEnabled: true,
 
         constructor: Single,
 
@@ -85,7 +83,6 @@ define(function (require) {
 
             axisModel.axis = axis;
             axis.model = axisModel;
-            axis.coordinateSystem = this;
             this._axis = axis;
         },
 
@@ -95,15 +92,25 @@ define(function (require) {
          * @param  {module:echarts/ExtensionAPI} api
          */
         update: function (ecModel, api) {
+            this._updateAxisFromSeries(ecModel);
+        },
+
+        /**
+         * Update the axis extent from series.
+         *
+         * @param  {module:echarts/model/Global} ecModel
+         * @private
+         */
+        _updateAxisFromSeries: function (ecModel) {
+
             ecModel.eachSeries(function (seriesModel) {
-                if (seriesModel.coordinateSystem === this) {
-                    var data = seriesModel.getData();
-                    var dim = this.dimension;
-                    this._axis.scale.unionExtentFromData(
-                        data, seriesModel.coordDimToDataDim(dim)
-                    );
-                    axisHelper.niceScaleExtent(this._axis.scale, this._axis.model);
-                }
+
+                var data = seriesModel.getData();
+                var dim = this.dimension;
+                this._axis.scale.unionExtent(
+                    data.getDataExtent(seriesModel.coordDimToDataDim(dim))
+                );
+                axisHelper.niceScaleExtent(this._axis, this._axis.model);
             }, this);
         },
 
@@ -167,19 +174,19 @@ define(function (require) {
             var extentSum = axisExtent[0] + axisExtent[1];
             var isHorizontal = axis.isHorizontal();
 
-            axis.toGlobalCoord = isHorizontal
-                ? function (coord) {
+            axis.toGlobalCoord = isHorizontal ?
+                function (coord) {
                     return coord + coordBase;
-                }
-                : function (coord) {
+                } :
+                function (coord) {
                     return extentSum - coord + coordBase;
                 };
 
-            axis.toLocalCoord = isHorizontal
-                ? function (coord) {
+            axis.toLocalCoord = isHorizontal ?
+                function (coord) {
                     return coord - coordBase;
-                }
-                : function (coord) {
+                } :
+                function (coord) {
                     return extentSum - coord + coordBase;
                 };
         },
@@ -200,20 +207,6 @@ define(function (require) {
          */
         getBaseAxis: function () {
             return this._axis;
-        },
-
-        /**
-         * @return {Array.<module:echarts/coord/Axis>}
-         */
-        getAxes: function () {
-            return [this._axis];
-        },
-
-        /**
-         * @return {Object} {baseAxes: [], otherAxes: []}
-         */
-        getTooltipAxes: function () {
-            return {baseAxes: [this.getAxis()]};
         },
 
         /**
@@ -258,16 +251,10 @@ define(function (require) {
             var rect = this.getRect();
             var pt = [];
             var idx = axis.orient === 'horizontal' ? 0 : 1;
-
-            if (val instanceof Array) {
-                val = val[0];
-            }
-
             pt[idx] = axis.toGlobalCoord(axis.dataToCoord(+val));
             pt[1 - idx] = idx === 0 ? (rect.y + rect.height / 2) : (rect.x + rect.width / 2);
             return pt;
         }
-
     };
 
     return Single;

@@ -7,17 +7,12 @@ define(function (require) {
     var symbolUtil = require('../../util/symbol');
     var graphic = require('../../util/graphic');
     var numberUtil = require('../../util/number');
-    var labelHelper = require('./labelHelper');
 
-    function getSymbolSize(data, idx) {
-        var symbolSize = data.getItemVisual(idx, 'symbolSize');
-        return symbolSize instanceof Array
-            ? symbolSize.slice()
-            : [+symbolSize, +symbolSize];
-    }
-
-    function getScale(symbolSize) {
-        return [symbolSize[0] / 2, symbolSize[1] / 2];
+    function normalizeSymbolSize(symbolSize) {
+        if (!(symbolSize instanceof Array)) {
+            symbolSize = [+symbolSize, +symbolSize];
+        }
+        return symbolSize;
     }
 
     /**
@@ -39,21 +34,15 @@ define(function (require) {
         this.parent.drift(dx, dy);
     }
 
-    symbolProto._createSymbol = function (symbolType, data, idx, symbolSize) {
+    symbolProto._createSymbol = function (symbolType, data, idx) {
         // Remove paths created before
         this.removeAll();
 
         var seriesModel = data.hostModel;
         var color = data.getItemVisual(idx, 'color');
 
-        // var symbolPath = symbolUtil.createSymbol(
-        //     symbolType, -0.5, -0.5, 1, 1, color
-        // );
-        // If width/height are set too small (e.g., set to 1) on ios10
-        // and macOS Sierra, a circle stroke become a rect, no matter what
-        // the scale is set. So we set width/height as 2. See #4150.
         var symbolPath = symbolUtil.createSymbol(
-            symbolType, -1, -1, 2, 2, color
+            symbolType, -0.5, -0.5, 1, 1, color
         );
 
         symbolPath.attr({
@@ -64,9 +53,12 @@ define(function (require) {
         // Rewrite drift method
         symbolPath.drift = driftSymbol;
 
+        var size = normalizeSymbolSize(data.getItemVisual(idx, 'symbolSize'));
+
         graphic.initProps(symbolPath, {
-            scale: getScale(symbolSize)
+            scale: size
         }, seriesModel, idx);
+
         this._symbolType = symbolType;
 
         this.add(symbolPath);
@@ -135,19 +127,18 @@ define(function (require) {
 
         var symbolType = data.getItemVisual(idx, 'symbol') || 'circle';
         var seriesModel = data.hostModel;
-        var symbolSize = getSymbolSize(data, idx);
-
+        var symbolSize = normalizeSymbolSize(data.getItemVisual(idx, 'symbolSize'));
         if (symbolType !== this._symbolType) {
-            this._createSymbol(symbolType, data, idx, symbolSize);
+            this._createSymbol(symbolType, data, idx);
         }
         else {
             var symbolPath = this.childAt(0);
-            symbolPath.silent = false;
             graphic.updateProps(symbolPath, {
-                scale: getScale(symbolSize)
+                scale: symbolSize
             }, seriesModel, idx);
         }
         this._updateCommon(data, idx, symbolSize, seriesScope);
+
         this._seriesModel = seriesModel;
     };
 
@@ -200,7 +191,7 @@ define(function (require) {
 
         var elStyle = symbolPath.style;
 
-        symbolPath.attr('rotation', (symbolRotate || 0) * Math.PI / 180 || 0);
+        symbolPath.rotation = (symbolRotate || 0) * Math.PI / 180 || 0;
 
         if (symbolOffset) {
             symbolPath.attr('position', [
@@ -219,13 +210,39 @@ define(function (require) {
             elStyle.opacity = opacity;
         }
 
-        var valueDim = labelHelper.findLabelValueDim(data);
-        labelHelper.setTextToStyle(
-            data, idx, valueDim, elStyle, seriesModel, labelModel, color
-        );
-        labelHelper.setTextToStyle(
-            data, idx, valueDim, hoverItemStyle, seriesModel, hoverLabelModel, color
-        );
+        // Get last value dim
+        var dimensions = data.dimensions.slice();
+        var valueDim;
+        var dataType;
+        while (dimensions.length && (
+            valueDim = dimensions.pop(),
+            dataType = data.getDimensionInfo(valueDim).type,
+            dataType === 'ordinal' || dataType === 'time'
+        )) {} // jshint ignore:line
+
+        if (valueDim != null && labelModel.getShallow('show')) {
+            graphic.setText(elStyle, labelModel, color);
+            elStyle.text = zrUtil.retrieve(
+                seriesModel.getFormattedLabel(idx, 'normal'),
+                data.get(valueDim, idx)
+            );
+        }
+        else {
+            elStyle.text = '';
+        }
+
+        if (valueDim != null && hoverLabelModel.getShallow('show')) {
+            graphic.setText(hoverItemStyle, hoverLabelModel, color);
+            hoverItemStyle.text = zrUtil.retrieve(
+                seriesModel.getFormattedLabel(idx, 'emphasis'),
+                data.get(valueDim, idx)
+            );
+        }
+        else {
+            hoverItemStyle.text = '';
+        }
+
+        var size = normalizeSymbolSize(data.getItemVisual(idx, 'symbolSize'));
 
         symbolPath.off('mouseover')
             .off('mouseout')
@@ -236,21 +253,19 @@ define(function (require) {
 
         graphic.setHoverStyle(symbolPath);
 
-        var scale = getScale(symbolSize);
-
-        if (hoverAnimation && seriesModel.isAnimationEnabled()) {
+        if (hoverAnimation && seriesModel.ifEnableAnimation()) {
             var onEmphasis = function() {
-                var ratio = scale[1] / scale[0];
+                var ratio = size[1] / size[0];
                 this.animateTo({
                     scale: [
-                        Math.max(scale[0] * 1.1, scale[0] + 3),
-                        Math.max(scale[1] * 1.1, scale[1] + 3 * ratio)
+                        Math.max(size[0] * 1.1, size[0] + 3),
+                        Math.max(size[1] * 1.1, size[1] + 3 * ratio)
                     ]
                 }, 400, 'elasticOut');
             };
             var onNormal = function() {
                 this.animateTo({
-                    scale: scale
+                    scale: size
                 }, 400, 'elasticOut');
             };
             symbolPath.on('mouseover', onEmphasis)
@@ -263,7 +278,7 @@ define(function (require) {
     symbolProto.fadeOut = function (cb) {
         var symbolPath = this.childAt(0);
         // Avoid mistaken hover when fading out
-        this.silent = symbolPath.silent = true;
+        this.silent = true;
         // Not show text when animating
         symbolPath.style.text = '';
         graphic.updateProps(symbolPath, {

@@ -7,25 +7,11 @@ define(function(require) {
     var axisModelCreator = require('../axisModelCreator');
 
     var PolarAxisModel = ComponentModel.extend({
-
         type: 'polarAxis',
-
         /**
          * @type {module:echarts/coord/polar/AngleAxis|module:echarts/coord/polar/RadiusAxis}
          */
-        axis: null,
-
-        /**
-         * @override
-         */
-        getCoordSysModel: function () {
-            return this.ecModel.queryComponents({
-                mainType: 'polar',
-                index: this.option.polarIndex,
-                id: this.option.polarId
-            })[0];
-        }
-
+        axis: null
     });
 
     zrUtil.merge(PolarAxisModel.prototype, require('../axisModelCommonMixin'));

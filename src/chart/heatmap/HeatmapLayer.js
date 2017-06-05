@@ -131,7 +131,7 @@ define(function (require) {
         _getGradient: function (data, colorFunc, state) {
             var gradientPixels = this._gradientPixels;
             var pixelsSingleState = gradientPixels[state] || (gradientPixels[state] = new Uint8ClampedArray(256 * 4));
-            var color = [0, 0, 0, 0];
+            var color = [];
             var off = 0;
             for (var i = 0; i < 256; i++) {
                 colorFunc[state](i / 255, true, color);

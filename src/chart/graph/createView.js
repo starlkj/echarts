@@ -18,6 +18,8 @@ define(function (require) {
         ecModel.eachSeriesByType('graph', function (seriesModel) {
             var coordSysType = seriesModel.get('coordinateSystem');
             if (!coordSysType || coordSysType === 'view') {
+                var viewCoordSys = new View();
+                viewList.push(viewCoordSys);
 
                 var data = seriesModel.getData();
                 var positions = data.mapArray(function (idx) {
@@ -54,7 +56,7 @@ define(function (require) {
                 var viewWidth = viewRect.width;
                 var viewHeight = viewRect.height;
 
-                var viewCoordSys = seriesModel.coordinateSystem = new View();
+                viewCoordSys = seriesModel.coordinateSystem = new View();
                 viewCoordSys.zoomLimit = seriesModel.get('scaleLimit');
 
                 viewCoordSys.setBoundingRect(
@@ -67,8 +69,6 @@ define(function (require) {
                 // Update roam info
                 viewCoordSys.setCenter(seriesModel.get('center'));
                 viewCoordSys.setZoom(seriesModel.get('zoom'));
-
-                viewList.push(viewCoordSys);
             }
         });
         return viewList;

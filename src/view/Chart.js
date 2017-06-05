@@ -3,8 +3,6 @@ define(function (require) {
     var Group = require('zrender/container/Group');
     var componentUtil = require('../util/component');
     var clazzUtil = require('../util/clazz');
-    var modelUtil = require('../util/model');
-    var zrUtil = require('zrender/core/util');
 
     function Chart() {
 
@@ -78,15 +76,6 @@ define(function (require) {
          * @param  {module:echarts/ExtensionAPI} api
          */
         dispose: function () {}
-
-        /**
-         * The view contains the given point.
-         * @interface
-         * @param {Array.<number>} point
-         * @return {boolean}
-         */
-        // containPoint: function () {}
-
     };
 
     var chartProto = Chart.prototype;
@@ -119,12 +108,21 @@ define(function (require) {
      * @inner
      */
     function toggleHighlight(data, payload, state) {
-        var dataIndex = modelUtil.queryDataIndex(data, payload);
+        var dataIndex = payload && payload.dataIndex;
+        var name = payload && payload.name;
 
         if (dataIndex != null) {
-            zrUtil.each(modelUtil.normalizeToArray(dataIndex), function (dataIdx) {
-                elSetState(data.getItemGraphicEl(dataIdx), state);
-            });
+            var dataIndices = dataIndex instanceof Array ? dataIndex : [dataIndex];
+            for (var i = 0, len = dataIndices.length; i < len; i++) {
+                elSetState(data.getItemGraphicEl(dataIndices[i]), state);
+            }
+        }
+        else if (name) {
+            var names = name instanceof Array ? name : [name];
+            for (var i = 0, len = names.length; i < len; i++) {
+                var dataIndex = data.indexOfName(names[i]);
+                elSetState(data.getItemGraphicEl(dataIndex), state);
+            }
         }
         else {
             data.eachItemGraphicEl(function (el) {
@@ -134,7 +132,7 @@ define(function (require) {
     }
 
     // Enable Chart.extend.
-    clazzUtil.enableClassExtend(Chart, ['dispose']);
+    clazzUtil.enableClassExtend(Chart);
 
     // Add capability of registerClass, getClass, hasClass, registerSubTypeDefaulter and so on.
     clazzUtil.enableClassManagement(Chart, {registerWhenExtend: true});

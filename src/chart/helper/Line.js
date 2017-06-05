@@ -34,7 +34,6 @@ define(function (require) {
             symbolType, -symbolSize[0] / 2, -symbolSize[1] / 2,
             symbolSize[0], symbolSize[1], color
         );
-
         symbolPath.name = name;
 
         return symbolPath;
@@ -166,21 +165,22 @@ define(function (require) {
                 position: textPosition,
                 scale: [invScale, invScale]
             });
-
-            // add by eltriny - #20161015-02 : MarkLine Label Rectangle --- Start
-            var labelContainer = lineGroup.childOfName( 'labelContainer' );
-            if( labelContainer ) {
-                var objShape = labelContainer.attr().shape;
-                labelContainer.attr(
-                    {
-                        shape : {
-                            x : textPosition[0] - objShape.width,
-                            y : textPosition[1] - ( objShape.height / 2 )
-                        }
-                    }
-                );
-            }
-            // add by eltriny - #20161015-02 : MarkLine Label Rectangle --- End
+            
+        	// add by eltriny - #20161015-02 : MarkLine Label Rectangle --- Start
+        	var labelContainer = lineGroup.childOfName( 'labelContainer' );
+        	if( labelContainer ) {
+        		var objShape = labelContainer.attr().shape;
+        		labelContainer.attr(
+    				{
+    					shape : {
+    						x : textPosition[0] - objShape.width,
+    						y : textPosition[1] - ( objShape.height / 2 )        				
+    					}        			
+    				}
+        		);
+        	}
+        	// add by eltriny - #20161015-02 : MarkLine Label Rectangle --- End            
+            
         }
     }
 
@@ -215,27 +215,29 @@ define(function (require) {
         this.add(line);
 
         // add by eltriny - #20161015-02 : MarkLine Label Rectangle --- Start
+
         var itemOpts = lineData.getItemModel( idx ).option;
-
+        
         if( itemOpts && itemOpts.label && itemOpts.label.normal && itemOpts.label.normal.fill ) {
-            var normalLabelFill	= itemOpts.label.normal.fill;
-            var objTextRect 	= seriesModel.getTextRect( seriesModel.getRawValue( idx ) );
-            var labelContainer = new graphic.Rect({
-                name : 'labelContainer',
-                shape: {
-                    x: 0,
-                    y: 0,
-                    width	: objTextRect.width + 10,
-                    height	: objTextRect.height + 10
-                },
-                style: { fill : normalLabelFill },
-                z: 2,
-                zlevel: 0
-            });
-            this.add( labelContainer );
+        	var normalLabelFill	= itemOpts.label.normal.fill;
+        	var objTextRect 	= seriesModel.getTextRect( seriesModel.getRawValue( idx ) );
+        	var labelContainer = new graphic.Rect({
+        		name : 'labelContainer',
+        		shape: {
+        			x: 0,
+        			y: 0,
+        			width	: objTextRect.width + 10,
+        			height	: objTextRect.height + 10
+        		},
+        		style: { fill : normalLabelFill },
+        		z: 2,
+        		zlevel: 0
+        	});
+        	this.add( labelContainer );        	
         }	// end if - normalLabelFill
+        
         // add by eltriny - #20161015-02 : MarkLine Label Rectangle --- End
-
+        
         var label = new graphic.Text({
             name: 'label'
         });
@@ -306,7 +308,10 @@ define(function (require) {
             lineStyle.opacity,
             1
         );
-
+        if (isNaN(defaultText)) {
+            // Use name
+            defaultText = lineData.getName(idx);
+        }
         line.useStyle(zrUtil.defaults(
             {
                 strokeNoScale: true,
@@ -331,29 +336,21 @@ define(function (require) {
 
         var showLabel = labelModel.getShallow('show');
         var hoverShowLabel = hoverLabelModel.getShallow('show');
-
+        var defaultText;
         var label = this.childOfName('label');
         var defaultLabelColor;
-        var defaultText;
-
         if (showLabel || hoverShowLabel) {
-            var rawVal = seriesModel.getRawValue(idx);
-            defaultText = rawVal == null
-                ? defaultText = lineData.getName(idx)
-                : isFinite(rawVal)
-                ? numberUtil.round(rawVal)
-                : rawVal;
+            defaultText = numberUtil.round(seriesModel.getRawValue(idx));
             defaultLabelColor = visualColor || '#000';
         }
-
         // label.afterUpdate = lineAfterUpdate;
         if (showLabel) {
             var textStyleModel = labelModel.getModel('textStyle');
             label.setStyle({
                 text: zrUtil.retrieve(
-                    seriesModel.getFormattedLabel(idx, 'normal', lineData.dataType),
-                    defaultText
-                ),
+                        seriesModel.getFormattedLabel(idx, 'normal', lineData.dataType),
+                        defaultText
+                    ),
                 textFont: textStyleModel.getFont(),
                 fill: textStyleModel.getTextColor() || defaultLabelColor
             });
@@ -370,9 +367,9 @@ define(function (require) {
 
             label.hoverStyle = {
                 text: zrUtil.retrieve(
-                    seriesModel.getFormattedLabel(idx, 'emphasis', lineData.dataType),
-                    defaultText
-                ),
+                        seriesModel.getFormattedLabel(idx, 'emphasis', lineData.dataType),
+                        defaultText
+                    ),
                 textFont: textStyleHoverModel.getFont(),
                 fill: textStyleHoverModel.getTextColor() || defaultLabelColor
             };

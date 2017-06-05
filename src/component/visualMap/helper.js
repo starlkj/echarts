@@ -1,6 +1,5 @@
 define(function(require) {
 
-    var zrUtil = require('zrender/core/util');
     var layout = require('../../util/layout');
 
     var helper = {
@@ -43,20 +42,6 @@ define(function(require) {
                 (rect.margin[rParam[2]] || 0) + rect[rParam[0]] + rect[rParam[1]] * 0.5
                     < ecSize[rParam[1]] * 0.5 ? 0 : 1
             ];
-        },
-
-        /**
-         * Prepare dataIndex for outside usage, where dataIndex means rawIndex, and
-         * dataIndexInside means filtered index.
-         */
-        convertDataIndex: function (batch) {
-            zrUtil.each(batch || [], function (batchItem) {
-                if (batch.dataIndex != null) {
-                    batch.dataIndexInside = batch.dataIndex;
-                    batch.dataIndex = null;
-                }
-            });
-            return batch;
         }
 
     };

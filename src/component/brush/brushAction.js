@@ -47,10 +47,10 @@ define(function(require) {
          {type: 'brushSelect', event: 'brushSelected', update: 'none'},
         function () {}
     );
-
+    
     // add by eltriny
     echarts.registerAction(
-        {type: 'brushDragEnd', event: 'brushDragEnd', update: 'none'},
-        function () {}
-    );
+    	{type: 'brushDragEnd', event: 'brushDragEnd', update: 'none'},
+       function () {}
+   );
 });

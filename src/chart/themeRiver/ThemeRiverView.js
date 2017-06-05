@@ -69,7 +69,9 @@ define(function (require) {
                     points0.push([x, y0]);
                     points1.push([x, y0 + y]);
 
-                    color = rawData.getItemVisual(indices[j], 'color');
+                    color = rawData.getItemVisual(
+                        data.getRawIndex(indices[j]), 'color'
+                    );
                 }
 
                 var polygon;
@@ -128,7 +130,7 @@ define(function (require) {
                 }
 
                 var hoverItemStyleModel = itemModel.getModel('itemStyle.emphasis');
-                var itemStyleModel = itemModel.getModel('itemStyle.normal');
+                var itemStyleModel = itemModel.getModel('itemStyle.nomral');
                 var textStyleModel = labelModel.getModel('textStyle');
 
                 text.setStyle({
@@ -150,9 +152,7 @@ define(function (require) {
 
             this._layersSeries = layerSeries;
             this._layers = newLayersGroups;
-        },
-
-        dispose: function () {}
+        }
     });
 
     // add animation to the view

@@ -20,7 +20,7 @@ define(function(require) {
          */
         init: function () {
             AxisModel.superApply(this, 'init', arguments);
-            this.resetRange();
+            this._resetRange();
         },
 
         /**
@@ -28,7 +28,7 @@ define(function(require) {
          */
         mergeOption: function () {
             AxisModel.superApply(this, 'mergeOption', arguments);
-            this.resetRange();
+            this._resetRange();
         },
 
         /**
@@ -36,19 +36,64 @@ define(function(require) {
          */
         restoreData: function () {
             AxisModel.superApply(this, 'restoreData', arguments);
-            this.resetRange();
+            this._resetRange();
         },
 
         /**
-         * @override
-         * @return {module:echarts/model/Component}
+         * @public
+         * @param {number} rangeStart
+         * @param {number} rangeEnd
          */
-        getCoordSysModel: function () {
+        setRange: function (rangeStart, rangeEnd) {
+            this.option.rangeStart = rangeStart;
+            this.option.rangeEnd = rangeEnd;
+        },
+
+        /**
+         * @public
+         * @return {Array.<number|string|Date>}
+         */
+        getMin: function () {
+            var option = this.option;
+            return option.rangeStart != null ? option.rangeStart : option.min;
+        },
+
+        /**
+         * @public
+         * @return {Array.<number|string|Date>}
+         */
+        getMax: function () {
+            var option = this.option;
+            return option.rangeEnd != null ? option.rangeEnd : option.max;
+        },
+
+        /**
+         * @public
+         * @return {boolean}
+         */
+        getNeedCrossZero: function () {
+            var option = this.option;
+            return (option.rangeStart != null || option.rangeEnd != null)
+                ? false : !option.scale;
+        },
+
+        /**
+         * @return {module:echarts/model/Model}
+         */
+        findGridModel: function () {
             return this.ecModel.queryComponents({
                 mainType: 'grid',
-                index: this.option.gridIndex,
-                id: this.option.gridId
+                index: this.get('gridIndex'),
+                id: this.get('gridId')
             })[0];
+        },
+
+        /**
+         * @private
+         */
+        _resetRange: function () {
+            // rangeStart and rangeEnd is readonly.
+            this.option.rangeStart = this.option.rangeEnd = null;
         }
 
     });

@@ -6,96 +6,29 @@ define(function(require) {
     var numberUtil = require('../util/number');
     var parsePercent = numberUtil.parsePercent;
 
-    var STACK_PREFIX = '__ec_stack_';
-
     function getSeriesStackId(seriesModel) {
-        return seriesModel.get('stack') || STACK_PREFIX + seriesModel.seriesIndex;
+        return seriesModel.get('stack') || '__ec_stack_' + seriesModel.seriesIndex;
     }
 
     function getAxisKey(axis) {
         return axis.dim + axis.index;
     }
 
-    /**
-     * @param {Object} opt
-     * @param {module:echarts/coord/Axis} opt.axis Only support category axis currently.
-     * @param {number} opt.count Positive interger.
-     * @param {number} [opt.barWidth]
-     * @param {number} [opt.barMaxWidth]
-     * @param {number} [opt.barGap]
-     * @param {number} [opt.barCategoryGap]
-     * @return {Object} {width, offset, offsetCenter} If axis.type is not 'category', return undefined.
-     */
-    function getLayoutOnAxis(opt, api) {
-        var params = [];
-        var baseAxis = opt.axis;
-        var axisKey = 'axis0';
-
-        if (baseAxis.type !== 'category') {
-            return;
-        }
-        var bandWidth = baseAxis.getBandWidth();
-
-        for (var i = 0; i < opt.count || 0; i++) {
-            params.push(zrUtil.defaults({
-                bandWidth: bandWidth,
-                axisKey: axisKey,
-                stackId: STACK_PREFIX + i
-            }, opt));
-        }
-        var widthAndOffsets = doCalBarWidthAndOffset(params, api);
-
-        var result = [];
-        for (var i = 0; i < opt.count; i++) {
-            var item = widthAndOffsets[axisKey][STACK_PREFIX + i];
-            item.offsetCenter = item.offset + item.width / 2;
-            result.push(item);
-        }
-
-        return result;
-    }
-
     function calBarWidthAndOffset(barSeries, api) {
-        var seriesInfoList = zrUtil.map(barSeries, function (seriesModel) {
+        // Columns info on each category axis. Key is cartesian name
+        var columnsMap = {};
+
+        zrUtil.each(barSeries, function (seriesModel, idx) {
             var data = seriesModel.getData();
             var cartesian = seriesModel.coordinateSystem;
+
             var baseAxis = cartesian.getBaseAxis();
             var axisExtent = baseAxis.getExtent();
             var bandWidth = baseAxis.type === 'category'
                 ? baseAxis.getBandWidth()
                 : (Math.abs(axisExtent[1] - axisExtent[0]) / data.count());
 
-            var barWidth = parsePercent(
-                seriesModel.get('barWidth'), bandWidth
-            );
-            var barMaxWidth = parsePercent(
-                seriesModel.get('barMaxWidth'), bandWidth
-            );
-            var barGap = seriesModel.get('barGap');
-            var barCategoryGap = seriesModel.get('barCategoryGap');
-
-            return {
-                bandWidth: bandWidth,
-                barWidth: barWidth,
-                barMaxWidth: barMaxWidth,
-                barGap: barGap,
-                barCategoryGap: barCategoryGap,
-                axisKey: getAxisKey(baseAxis),
-                stackId: getSeriesStackId(seriesModel)
-            };
-        });
-
-        return doCalBarWidthAndOffset(seriesInfoList, api);
-    }
-
-    function doCalBarWidthAndOffset(seriesInfoList, api) {
-        // Columns info on each category axis. Key is cartesian name
-        var columnsMap = {};
-
-        zrUtil.each(seriesInfoList, function (seriesInfo, idx) {
-            var axisKey = seriesInfo.axisKey;
-            var bandWidth = seriesInfo.bandWidth;
-            var columnsOnAxis = columnsMap[axisKey] || {
+            var columnsOnAxis = columnsMap[getAxisKey(baseAxis)] || {
                 bandWidth: bandWidth,
                 remainedWidth: bandWidth,
                 autoWidthCount: 0,
@@ -104,9 +37,9 @@ define(function(require) {
                 stacks: {}
             };
             var stacks = columnsOnAxis.stacks;
-            columnsMap[axisKey] = columnsOnAxis;
+            columnsMap[getAxisKey(baseAxis)] = columnsOnAxis;
 
-            var stackId = seriesInfo.stackId;
+            var stackId = getSeriesStackId(seriesModel);
 
             if (!stacks[stackId]) {
                 columnsOnAxis.autoWidthCount++;
@@ -116,24 +49,23 @@ define(function(require) {
                 maxWidth: 0
             };
 
-            // Caution: In a single coordinate system, these barGrid attributes
-            // will be shared by series. Consider that they have default values,
-            // only the attributes set on the last series will work.
-            // Do not change this fact unless there will be a break change.
-
+            var barWidth = parsePercent(
+                seriesModel.get('barWidth'), bandWidth
+            );
+            var barMaxWidth = parsePercent(
+                seriesModel.get('barMaxWidth'), bandWidth
+            );
+            var barGap = seriesModel.get('barGap');
+            var barCategoryGap = seriesModel.get('barCategoryGap');
             // TODO
-            var barWidth = seriesInfo.barWidth;
             if (barWidth && !stacks[stackId].width) {
                 barWidth = Math.min(columnsOnAxis.remainedWidth, barWidth);
                 stacks[stackId].width = barWidth;
                 columnsOnAxis.remainedWidth -= barWidth;
             }
 
-            var barMaxWidth = seriesInfo.barMaxWidth;
             barMaxWidth && (stacks[stackId].maxWidth = barMaxWidth);
-            var barGap = seriesInfo.barGap;
             (barGap != null) && (columnsOnAxis.gap = barGap);
-            var barCategoryGap = seriesInfo.barCategoryGap;
             (barCategoryGap != null) && (columnsOnAxis.categoryGap = barCategoryGap);
         });
 
@@ -157,11 +89,8 @@ define(function(require) {
             // Find if any auto calculated bar exceeded maxBarWidth
             zrUtil.each(stacks, function (column, stack) {
                 var maxWidth = column.maxWidth;
-                if (maxWidth && maxWidth < autoWidth) {
+                if (!column.width && maxWidth && maxWidth < autoWidth) {
                     maxWidth = Math.min(maxWidth, remainedWidth);
-                    if (column.width) {
-                        maxWidth = Math.min(maxWidth, column.width);
-                    }
                     remainedWidth -= maxWidth;
                     column.width = maxWidth;
                     autoWidthCount--;
@@ -219,14 +148,8 @@ define(function(require) {
         );
 
         var lastStackCoords = {};
-        var lastStackCoordsOrigin = {};
 
         ecModel.eachSeriesByType(seriesType, function (seriesModel) {
-
-            // Check series coordinate, do layout for cartesian2d only
-            if (seriesModel.coordinateSystem.type !== 'cartesian2d') {
-                return;
-            }
 
             var data = seriesModel.getData();
             var cartesian = seriesModel.coordinateSystem;
@@ -246,44 +169,34 @@ define(function(require) {
 
             var coords = cartesian.dataToPoints(data, true);
             lastStackCoords[stackId] = lastStackCoords[stackId] || [];
-            lastStackCoordsOrigin[stackId] = lastStackCoordsOrigin[stackId] || []; // Fix #4243
 
             data.setLayout({
                 offset: columnOffset,
                 size: columnWidth
             });
-
             data.each(valueAxis.dim, function (value, idx) {
+                // 空数据
                 if (isNaN(value)) {
                     return;
                 }
-
                 if (!lastStackCoords[stackId][idx]) {
                     lastStackCoords[stackId][idx] = {
-                        p: valueAxisStart, // Positive stack
-                        n: valueAxisStart  // Negative stack
-                    };
-                    lastStackCoordsOrigin[stackId][idx] = {
-                        p: valueAxisStart, // Positive stack
-                        n: valueAxisStart  // Negative stack
+                        // Positive stack
+                        p: valueAxisStart,
+                        // Negative stack
+                        n: valueAxisStart
                     };
                 }
                 var sign = value >= 0 ? 'p' : 'n';
                 var coord = coords[idx];
                 var lastCoord = lastStackCoords[stackId][idx][sign];
-                var lastCoordOrigin = lastStackCoordsOrigin[stackId][idx][sign];
-                var x;
-                var y;
-                var width;
-                var height;
-
+                var x, y, width, height;
                 if (valueAxis.isHorizontal()) {
                     x = lastCoord;
                     y = coord[1] + columnOffset;
-                    width = coord[0] - lastCoordOrigin;
+                    width = coord[0] - lastCoord;
                     height = columnWidth;
 
-                    lastStackCoordsOrigin[stackId][idx][sign] += width;
                     if (Math.abs(width) < barMinHeight) {
                         width = (width < 0 ? -1 : 1) * barMinHeight;
                     }
@@ -293,9 +206,7 @@ define(function(require) {
                     x = coord[0] + columnOffset;
                     y = lastCoord;
                     width = columnWidth;
-                    height = coord[1] - lastCoordOrigin;
-
-                    lastStackCoordsOrigin[stackId][idx][sign] += height;
+                    height = coord[1] - lastCoord;
                     if (Math.abs(height) < barMinHeight) {
                         // Include zero to has a positive bar
                         height = (height <= 0 ? -1 : 1) * barMinHeight;
@@ -313,8 +224,6 @@ define(function(require) {
 
         }, this);
     }
-
-    barLayoutGrid.getLayoutOnAxis = getLayoutOnAxis;
 
     return barLayoutGrid;
 });

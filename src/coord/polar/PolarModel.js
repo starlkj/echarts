@@ -24,7 +24,13 @@ define(function (require) {
             var ecModel = this.ecModel;
 
             ecModel.eachComponent(axisType, function (axisModel) {
-                if (axisModel.getCoordSysModel() === this) {
+                var polarModel = ecModel.queryComponents({
+                    mainType: 'polar',
+                    index: axisModel.getShallow('polarIndex'),
+                    id: axisModel.getShallow('polarId')
+                })[0];
+
+                if(polarModel === this) {
                     foundAxisModel = axisModel;
                 }
             }, this);

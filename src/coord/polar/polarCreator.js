@@ -46,13 +46,17 @@ define(function (require) {
         ecModel.eachSeries(function (seriesModel) {
             if (seriesModel.coordinateSystem === polar) {
                 var data = seriesModel.getData();
-                radiusAxis.scale.unionExtentFromData(data, 'radius');
-                angleAxis.scale.unionExtentFromData(data, 'angle');
+                radiusAxis.scale.unionExtent(
+                    data.getDataExtent('radius', radiusAxis.type !== 'category')
+                );
+                angleAxis.scale.unionExtent(
+                    data.getDataExtent('angle', angleAxis.type !== 'category')
+                );
             }
         });
 
-        niceScaleExtent(angleAxis.scale, angleAxis.model);
-        niceScaleExtent(radiusAxis.scale, radiusAxis.model);
+        niceScaleExtent(angleAxis, angleAxis.model);
+        niceScaleExtent(radiusAxis, radiusAxis.model);
 
         // Fix extent of category angle axis
         if (angleAxis.type === 'category' && !angleAxis.onBand) {
@@ -112,7 +116,6 @@ define(function (require) {
                 polarList.push(polar);
 
                 polarModel.coordinateSystem = polar;
-                polar.model = polarModel;
             });
             // Inject coordinateSystem to series
             ecModel.eachSeries(function (seriesModel) {

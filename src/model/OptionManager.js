@@ -193,7 +193,7 @@ define(function (require) {
                 // called, and is merged into every new option by inner method `mergeOption`
                 // each time `setOption` called, can be only used in `isRecreate`, because
                 // its reliability is under suspicion. In other cases option merge is
-                // performed by `model.mergeOption`.
+                // proformed by `model.mergeOption`.
                 ? optionBackup.baseOption : this._newBaseOption
             );
         },

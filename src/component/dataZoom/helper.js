@@ -4,17 +4,7 @@ define(function (require) {
 
     var helper = {};
 
-    var AXIS_DIMS = ['x', 'y', 'z', 'radius', 'angle', 'single'];
-    // Supported coords.
-    var COORDS = ['cartesian2d', 'polar', 'singleAxis'];
-
-    /**
-     * @param {string} coordType
-     * @return {boolean}
-     */
-    helper.isCoordSupported = function (coordType) {
-        return zrUtil.indexOf(COORDS, coordType) >= 0;
-    };
+    var AXIS_DIMS = ['x', 'y', 'z', 'radius', 'angle'];
 
     /**
      * Create "each" method to iterate names.

@@ -43,28 +43,19 @@ define(function(require) {
          * @private
          */
         this._angleAxis = new AngleAxis();
-
-        this._radiusAxis.polar = this._angleAxis.polar = this;
     };
 
     Polar.prototype = {
 
-        type: 'polar',
-
-        axisPointerEnabled: true,
-
         constructor: Polar,
+
+        type: 'polar',
 
         /**
          * @param {Array.<string>}
          * @readOnly
          */
         dimensions: ['radius', 'angle'],
-
-        /**
-         * @type {module:echarts/coord/PolarModel}
-         */
-        model: null,
 
         /**
          * If contain coord
@@ -88,18 +79,11 @@ define(function(require) {
         },
 
         /**
-         * @param {string} dim
+         * @param {string} axisType
          * @return {module:echarts/coord/polar/AngleAxis|module:echarts/coord/polar/RadiusAxis}
          */
-        getAxis: function (dim) {
-            return this['_' + dim + 'Axis'];
-        },
-
-        /**
-         * @return {Array.<module:echarts/coord/Axis>}
-         */
-        getAxes: function () {
-            return [this._radiusAxis, this._angleAxis];
+        getAxis: function (axisType) {
+            return this['_' + axisType + 'Axis'];
         },
 
         /**
@@ -152,19 +136,6 @@ define(function(require) {
         },
 
         /**
-         * @param {string} [dim] 'radius' or 'angle' or 'auto' or null/undefined
-         * @return {Object} {baseAxes: [], otherAxes: []}
-         */
-        getTooltipAxes: function (dim) {
-            var baseAxis = (dim != null && dim !== 'auto')
-                ? this.getAxis(dim) : this.getBaseAxis();
-            return {
-                baseAxes: [baseAxis],
-                otherAxes: [this.getOtherAxis(baseAxis)]
-            };
-        },
-
-        /**
          * Convert series data to a list of (x, y) points
          * @param {module:echarts/data/List} data
          * @return {Array}
@@ -174,7 +145,7 @@ define(function(require) {
         dataToPoints: function (data) {
             return data.mapArray(this.dimensions, function (radius, angle) {
                 return this.dataToPoint([radius, angle]);
-            }, true, this);
+            }, this);
         },
 
         /**
@@ -252,7 +223,6 @@ define(function(require) {
 
             return [x, y];
         }
-
     };
 
     return Polar;

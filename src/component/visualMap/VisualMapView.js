@@ -78,7 +78,7 @@ define(function (require) {
 
         /**
          * @protected
-         * @param {number} targetValue can be Infinity or -Infinity
+         * @param {number} targetValue
          * @param {string=} visualCluster Only can be 'color' 'opacity' 'symbol' 'symbolSize'
          * @param {Object} [opts]
          * @param {string=} [opts.forceState] Specify state, instead of using getValueState method.
@@ -137,7 +137,7 @@ define(function (require) {
             var model = this.visualMapModel;
             var api = this.api;
 
-            layout.positionElement(
+            layout.positionGroup(
                 group,
                 model.getBoxLayoutParams(),
                 {width: api.getWidth(), height: api.getHeight()}

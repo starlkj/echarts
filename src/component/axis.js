@@ -4,5 +4,5 @@ define(function(require) {
 
     require('../coord/cartesian/AxisModel');
 
-    require('./axis/CartesianAxisView');
+    require('./axis/AxisView');
 });

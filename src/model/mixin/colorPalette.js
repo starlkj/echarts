@@ -1,21 +1,15 @@
-define(function (require) {
-
-    var classUtil = require('../../util/clazz');
-    var set = classUtil.set;
-    var get = classUtil.get;
-
+define(function () {
     return {
         clearColorPalette: function () {
-            set(this, 'colorIdx', 0);
-            set(this, 'colorNameMap', {});
+            this._colorIdx = 0;
+            this._colorNameMap = {};
         },
 
         getColorFromPalette: function (name, scope) {
             scope = scope || this;
-            var colorIdx = get(scope, 'colorIdx') || 0;
-            var colorNameMap = get(scope, 'colorNameMap') || set(scope, 'colorNameMap', {});
-            // Use `hasOwnProperty` to avoid conflict with Object.prototype.
-            if (colorNameMap.hasOwnProperty(name)) {
+            var colorIdx = scope._colorIdx || 0;
+            var colorNameMap = scope._colorNameMap || (scope._colorNameMap = {});
+            if (colorNameMap[name]) {
                 return colorNameMap[name];
             }
             var colorPalette = this.get('color', true) || [];
@@ -27,7 +21,7 @@ define(function (require) {
             if (name) {
                 colorNameMap[name] = color;
             }
-            set(scope, 'colorIdx', (colorIdx + 1) % colorPalette.length);
+            scope._colorIdx = (colorIdx + 1) % colorPalette.length;
 
             return color;
         }

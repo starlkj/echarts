@@ -3,8 +3,6 @@ define(function(require) {
     var VisualMapModel = require('./VisualMapModel');
     var zrUtil = require('zrender/core/util');
     var VisualMapping = require('../../visual/VisualMapping');
-    var visualDefault = require('../../visual/visualDefault');
-    var reformIntervals = require('../../util/number').reformIntervals;
 
     var PiecewiseModel = VisualMapModel.extend({
 
@@ -38,10 +36,6 @@ define(function(require) {
                                         // When pieces and splitNumber: {'0': true, '5': true}
                                         // When categories: {'cate1': false, 'cate3': true}
                                         // When selected === false, means all unselected.
-
-            minOpen: false,             // Whether include values that smaller than `min`.
-            maxOpen: false,             // Whether include values that bigger than `max`.
-
             align: 'auto',              // 'auto', 'left', 'right'
             itemWidth: 20,              // When put the controller vertically, it is the length of
                                         // horizontal side of each item. Otherwise, vertical side.
@@ -61,16 +55,13 @@ define(function(require) {
                                         // compatibility, see echarts/component/visualMap/typeDefaulter)
             selectedMode: 'multiple',   // Can be 'multiple' or 'single'.
             itemGap: 10,                // The gap between two items, in px.
-            hoverLink: true,            // Enable hover highlight.
-
-            showLabel: null,             // By default, when text is used, label will hide (the logic
-                                        // is remained for compatibility reason)
+            hoverLink: true             // Enable hover highlight.
 
             // page 기능 사용 여부 및 페이지 아이템 갯수 지정
             // 0 : 페이지 기능 사용 안함
             // -- add by dolkkok - #20161219-01 : VisualMap Paging
-            pageItems : 0,
-            page	: 1
+            , pageItems : 0
+            , page		: 1
         },
 
         /**
@@ -113,65 +104,12 @@ define(function(require) {
                     mappingOption.pieceList = zrUtil.map(this._pieceList, function (piece) {
                         var piece = zrUtil.clone(piece);
                         if (state !== 'inRange') {
-                            // FIXME
-                            // outOfRange do not support special visual in pieces.
                             piece.visual = null;
                         }
                         return piece;
                     });
                 }
             });
-        },
-
-        /**
-         * @protected
-         * @override
-         */
-        completeVisualOption: function () {
-            // Consider this case:
-            // visualMap: {
-            //      pieces: [{symbol: 'circle', lt: 0}, {symbol: 'rect', gte: 0}]
-            // }
-            // where no inRange/outOfRange set but only pieces. So we should make
-            // default inRange/outOfRange for this case, otherwise visuals that only
-            // appear in `pieces` will not be taken into account in visual encoding.
-
-            var option = this.option;
-            var visualTypesInPieces = {};
-            var visualTypes = VisualMapping.listVisualTypes();
-            var isCategory = this.isCategory();
-
-            zrUtil.each(option.pieces, function (piece) {
-                zrUtil.each(visualTypes, function (visualType) {
-                    if (piece.hasOwnProperty(visualType)) {
-                        visualTypesInPieces[visualType] = 1;
-                    }
-                });
-            });
-
-            zrUtil.each(visualTypesInPieces, function (v, visualType) {
-                var exists = 0;
-                zrUtil.each(this.stateList, function (state) {
-                    exists |= has(option, state, visualType)
-                        || has(option.target, state, visualType);
-                }, this);
-
-                !exists && zrUtil.each(this.stateList, function (state) {
-                    (option[state] || (option[state] = {}))[visualType] = visualDefault.get(
-                        visualType, state === 'inRange' ? 'active' : 'inactive', isCategory
-                    );
-                });
-            }, this);
-
-            function has(obj, state, visualType) {
-                return obj && obj[state] && (
-                    zrUtil.isObject(obj[state])
-                        ? obj[state].hasOwnProperty(visualType)
-                        : obj[state] === visualType // e.g., inRange: 'symbol'
-                );
-            }
-
-            VisualMapModel.prototype.completeVisualOption.apply(this, arguments);
         },
 
         _resetSelected: function (newOption, isInit) {
@@ -185,7 +123,7 @@ define(function(require) {
             // Consider 'not specified' means true.
             zrUtil.each(pieceList, function (piece, index) {
                 var key = this.getSelectedMapKey(piece);
-                if (!selected.hasOwnProperty(key)) {
+                if (!(key in selected)) {
                     selected[key] = true;
                 }
             }, this);
@@ -283,8 +221,6 @@ define(function(require) {
 
         /**
          * @private
-         * @param {Object} piece piece.value or piece.interval is required.
-         * @return {number} Can be Infinity or -Infinity
          */
         getRepresentValue: function (piece) {
             var representValue;
@@ -297,68 +233,41 @@ define(function(require) {
                 }
                 else {
                     var pieceInterval = piece.interval || [];
-                    representValue = (pieceInterval[0] === -Infinity && pieceInterval[1] === Infinity)
-                        ? 0
-                        : (pieceInterval[0] + pieceInterval[1]) / 2;
+                    representValue = (pieceInterval[0] + pieceInterval[1]) / 2;
                 }
             }
             return representValue;
         },
 
-        getVisualMeta: function (getColorVisual) {
-            // Do not support category. (category axis is ordinal, numerical)
-            if (this.isCategory()) {
-                return;
-            }
-
-            var stops = [];
-            var outerColors = [];
-            var visualMapModel = this;
-
-            function setStop(interval, valueState) {
-                var representValue = visualMapModel.getRepresentValue({interval: interval});
-                if (!valueState) {
-                    valueState = visualMapModel.getValueState(representValue);
-                }
-                var color = getColorVisual(representValue, valueState);
-                if (interval[0] === -Infinity) {
-                    outerColors[0] = color;
-                }
-                else if (interval[1] === Infinity) {
-                    outerColors[1] = color;
-                }
-                else {
-                    stops.push(
-                        {value: interval[0], color: color},
-                        {value: interval[1], color: color}
-                    );
-                }
-            }
-
-            // Suplement
-            var pieceList = this._pieceList.slice();
-            if (!pieceList.length) {
-                pieceList.push({interval: [-Infinity, Infinity]});
-            }
-            else {
-                var edge = pieceList[0].interval[0];
-                edge !== -Infinity && pieceList.unshift({interval: [-Infinity, edge]});
-                edge = pieceList[pieceList.length - 1].interval[1];
-                edge !== Infinity && pieceList.push({interval: [edge, Infinity]});
-            }
+        getStops: function (seriesModel, getColorVisual) {
+            var result = [];
+            var model = this;
 
             var curr = -Infinity;
-            zrUtil.each(pieceList, function (piece) {
+            zrUtil.each(this._pieceList, function (piece) {
+                // Do not support category yet.
                 var interval = piece.interval;
                 if (interval) {
-                    // Fulfill gap.
-                    interval[0] > curr && setStop([curr, interval[0]], 'outOfRange');
-                    setStop(interval.slice());
+                    interval[0] > curr && setPiece({
+                        interval: [curr, interval[0]],
+                        valueState: 'outOfRange'
+                    });
+                    setPiece({
+                        interval: interval.slice(),
+                        valueState: this.getValueState((interval[0] + interval[1]) / 2)
+                    });
                     curr = interval[1];
                 }
             }, this);
 
-            return {stops: stops, outerColors: outerColors};
+            return result;
+
+            function setPiece(piece) {
+                result.push(piece);
+                piece.color = getColorVisual(
+                    model, model.getRepresentValue(piece), piece.valueState
+                );
+            }
         }
 
     });
@@ -387,39 +296,17 @@ define(function(require) {
             thisOption.precision = precision;
             splitStep = +splitStep.toFixed(precision);
 
-            var index = 0;
-
-            if (thisOption.minOpen) {
-                pieceList.push({
-                    index: index++,
-                    interval: [-Infinity, dataExtent[0]],
-                    close: [0, 0]
-                });
-            }
-
-            for (
-                var curr = dataExtent[0], len = index + splitNumber;
-                index < len;
-                curr += splitStep
-            ) {
-                var max = index === splitNumber - 1 ? dataExtent[1] : (curr + splitStep);
+            for (var i = 0, curr = dataExtent[0]; i < splitNumber; i++, curr += splitStep) {
+                var max = i === splitNumber - 1 ? dataExtent[1] : (curr + splitStep);
 
                 pieceList.push({
-                    index: index++,
+                    index: i,
                     interval: [curr, max],
                     close: [1, 1]
                 });
             }
 
-            if (thisOption.maxOpen) {
-                pieceList.push({
-                    index: index++,
-                    interval: [dataExtent[1], Infinity],
-                    close: [0, 0]
-                });
-            }
-
-            reformIntervals(pieceList);
+            normalizePieces(pieceList);
 
             zrUtil.each(pieceList, function (piece) {
                 piece.text = this.formatValueText(piece.interval);
@@ -509,7 +396,7 @@ define(function(require) {
             // See "Order Rule".
             normalizeReverse(thisOption, pieceList);
             // Only pieces
-            reformIntervals(pieceList);
+            normalizePieces(pieceList);
 
             zrUtil.each(pieceList, function (piece) {
                 var close = piece.close;
@@ -527,6 +414,40 @@ define(function(require) {
         var inverse = thisOption.inverse;
         if (thisOption.orient === 'vertical' ? !inverse : inverse) {
              pieceList.reverse();
+        }
+    }
+
+    // Reorder, remove duplicate, which are needed when using gradient.
+    // Not applicable for categories.
+    function normalizePieces(pieceList) {
+        pieceList.sort(function (a, b) {
+            return littleThan(a, b) ? -1 : 1;
+        });
+
+        var curr = -Infinity;
+        for (var i = 0; i < pieceList.length; i++) {
+            var interval = pieceList[i].interval;
+            var close = pieceList[i].close;
+            for (var lg = 0; lg < 2; lg++) {
+                if (interval[lg] < curr) {
+                    interval[lg] = curr;
+                    close[lg] = 1 - lg;
+                }
+                curr = interval[lg];
+            }
+        }
+        // console.log(JSON.stringify(pieceList.map(a => a.interval)));
+
+        function littleThan(piece, standard, lg) {
+            lg = lg || 0;
+            return piece.interval[lg] < standard.interval[lg]
+                || (
+                    piece.interval[lg] === standard.interval[lg]
+                    && (
+                        +piece.close[lg] > standard.close[lg]
+                        || littleThan(piece, standard, 1)
+                    )
+                );
         }
     }
 

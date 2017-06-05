@@ -89,6 +89,9 @@ define(function(require) {
         $constructor: function (option, parentModel, ecModel, extraOpt) {
             Model.call(this, option, parentModel, ecModel, extraOpt);
 
+            // Set dependentModels, componentIndex, name, id, mainType, subType.
+            zrUtil.extend(this, extraOpt);
+
             this.uid = componentUtil.getUID('componentModel');
         },
 
@@ -111,7 +114,7 @@ define(function(require) {
             }
         },
 
-        mergeOption: function (option, extraOpt) {
+        mergeOption: function (option) {
             zrUtil.merge(this.option, option, true);
 
             var layoutMode = this.layoutMode;
@@ -124,7 +127,7 @@ define(function(require) {
         optionUpdated: function (newCptOption, isInit) {},
 
         getDefaultOption: function () {
-            if (!clazzUtil.hasOwn(this, '__defaultOption')) {
+            if (!this.hasOwnProperty('__defaultOption')) {
                 var optList = [];
                 var Class = this.constructor;
                 while (Class) {
@@ -137,17 +140,9 @@ define(function(require) {
                 for (var i = optList.length - 1; i >= 0; i--) {
                     defaultOption = zrUtil.merge(defaultOption, optList[i], true);
                 }
-                clazzUtil.set(this, '__defaultOption', defaultOption);
+                this.__defaultOption = defaultOption;
             }
-            return clazzUtil.get(this, '__defaultOption');
-        },
-
-        getReferringComponents: function (mainType) {
-            return this.ecModel.queryComponents({
-                mainType: mainType,
-                index: this.get(mainType + 'Index', true),
-                id: this.get(mainType + 'Id', true)
-            });
+            return this.__defaultOption;
         }
 
     });

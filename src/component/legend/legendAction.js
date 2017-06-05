@@ -31,7 +31,7 @@ define(function(require) {
                     return;
                 }
                 var isItemSelected = legendModel.isSelected(name);
-                if (selectedMap.hasOwnProperty(name)) {
+                if (name in selectedMap) {
                     // Unselected if any legend is unselected
                     selectedMap[name] = selectedMap[name] && isItemSelected;
                 }

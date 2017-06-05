@@ -30,7 +30,7 @@ describe('modelAndOptionMapping', function() {
     function countModel(chart, type) {
         // FIXME
         // access private
-        return chart.getModel()._componentsMap.get(type).length;
+        return chart.getModel()._componentsMap[type].length;
     }
 
     function getChartView(chart, series) {
@@ -145,7 +145,7 @@ describe('modelAndOptionMapping', function() {
             var origins = saveOrigins(chart);
             chart.setOption({
                 series: [
-                    {data: [22222]}
+                    {type: 'line', data: [22222]}
                 ]
             });
 

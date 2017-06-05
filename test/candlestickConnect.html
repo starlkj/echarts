@@ -13,7 +13,7 @@
             #main3 {
                 width: 90%;
                 height: 200px;
-                margin: 20px;
+                margin: 0;
                 padding: 0;
             }
             #main2 {
@@ -104,10 +104,10 @@
                         end : 100
                     },
                     grid: {
-                        left: 80,
-                        top: 40,
-                        right: 20,
-                        bottom: 85
+                        x: 80,
+                        y: 40,
+                        x2:20,
+                        y2:25
                     },
                     xAxis : [
                         {
@@ -225,9 +225,6 @@
                     ]
                 };
 
-
-
-
                 option2 = {
                     tooltip : {
                         trigger: 'axis',
@@ -257,15 +254,17 @@
                     },
                     grid: {
                         x: 80,
-                        y: 20,
-                        x2: 20,
-                        y2: 60
+                        y:5,
+                        x2:20,
+                        y2:40
                     },
                     xAxis : [
                         {
                             type : 'category',
                             position:'top',
-                            // boundaryGap : true,
+                            boundaryGap : true,
+                            axisLabel:{show:false},
+                            axisTick: {onGap:false},
                             splitLine: {show:false},
                             data : axisData
                         }
@@ -326,10 +325,8 @@
                         }
                     ]
                 };
-
-
-
-
+                myChart2 = echarts.init(document.getElementById('main2'));
+                myChart2.setOption(option2);
 
                 option3 = {
                     tooltip : {
@@ -353,7 +350,7 @@
                         }
                     },
                     dataZoom : {
-                        bottom: 5,
+                        y:200,
                         show : true,
                         realtime: true,
                         start : 50,
@@ -361,9 +358,9 @@
                     },
                     grid: {
                         x: 80,
-                        y: 20,
-                        x2: 20,
-                        y2: 80
+                        y:5,
+                        x2:20,
+                        y2:30
                     },
                     xAxis : [
                         {
@@ -431,10 +428,6 @@
                         }
                     ]
                 };
-
-
-
-
 
                 var myChart = echarts.init(document.getElementById('main'));
                 myChart.setOption(option);

@@ -36,7 +36,8 @@ define(function(require) {
             brushStyle: {           // Default brushStyle
                 borderWidth: 1,
                 color: 'rgba(120,140,180,0.3)',
-                borderColor: 'rgba(120,140,180,0.8)'
+                borderColor: 'rgba(120,140,180,0.8)',
+                width: null         // do not use bursh width in line brush, but fetch from grid.
             },
 
             throttleType: 'fixRate',// Throttle in brushSelected event. 'fixRate' or 'debounce'.
@@ -45,9 +46,7 @@ define(function(require) {
 
             // FIXME
             // 试验效果
-            removeOnClick: true,
-
-            z: 10000
+            removeOnClick: true
         },
 
         /**
@@ -89,6 +88,7 @@ define(function(require) {
             thisOption.inBrush = thisOption.inBrush || {};
             // Always give default visual, consider setOption at the second time.
             thisOption.outOfBrush = thisOption.outOfBrush || {color: DEFAULT_OUT_OF_BRUSH_COLOR};
+
         },
 
         /**
@@ -112,7 +112,7 @@ define(function(require) {
             }
 
             this.areas = zrUtil.map(areas, function (area) {
-                return generateBrushOption(this.option, area);
+                return this._mergeBrushOption(area);
             }, this);
         },
 
@@ -121,26 +121,29 @@ define(function(require) {
          * @param {Object} brushOption
          */
         setBrushOption: function (brushOption) {
-            this.brushOption = generateBrushOption(this.option, brushOption);
+            this.brushOption = this._mergeBrushOption(brushOption);
             this.brushType = this.brushOption.brushType;
+        },
+
+        /**
+         * @private
+         */
+        _mergeBrushOption: function (brushOption) {
+            var option = this.option;
+            return zrUtil.merge(
+                {
+                    brushType: option.brushType,
+                    brushMode: option.brushMode,
+                    transformable: option.transformable,
+                    brushStyle: new Model(option.brushStyle).getItemStyle(),
+                    removeOnClick: option.removeOnClick
+                },
+                brushOption,
+                true
+            );
         }
 
     });
-
-    function generateBrushOption(option, brushOption) {
-        return zrUtil.merge(
-            {
-                brushType: option.brushType,
-                brushMode: option.brushMode,
-                transformable: option.transformable,
-                brushStyle: new Model(option.brushStyle).getItemStyle(),
-                removeOnClick: option.removeOnClick,
-                z: option.z
-            },
-            brushOption,
-            true
-        );
-    }
 
     return BrushModel;
 

@@ -13,9 +13,8 @@ define(function(require) {
 
         getStyleUpdater: function () {
             return updateStyle;
-        },
+        }
 
-        dispose: zrUtil.noop
     });
 
     zrUtil.mixin(CandlestickView, whiskerBoxCommon.viewMixin, true);

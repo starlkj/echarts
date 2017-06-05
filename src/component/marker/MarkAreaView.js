@@ -155,9 +155,12 @@ define(function (require) {
             var seriesData = seriesModel.getData();
 
             var areaGroupMap = this.markerGroupMap;
-            var polygonGroup = areaGroupMap.get(seriesName)
-                || areaGroupMap.set(seriesName, {group: new graphic.Group()});
-
+            var polygonGroup = areaGroupMap[seriesName];
+            if (!polygonGroup) {
+                polygonGroup = areaGroupMap[seriesName] = {
+                    group: new graphic.Group()
+                };
+            }
             this.group.add(polygonGroup.group);
             polygonGroup.__keep = true;
 
@@ -225,28 +228,17 @@ define(function (require) {
 
                 var defaultValue = areaData.getName(idx) || '';
                 var textColor = color || polygon.style.fill;
+                graphic.setText(polygon.style, labelModel, textColor);
+                polygon.style.text = zrUtil.retrieve(
+                    maModel.getFormattedLabel(idx, 'normal'),
+                    defaultValue
+                );
 
-                if (labelModel.getShallow('show')) {
-                    graphic.setText(polygon.style, labelModel, textColor);
-                    polygon.style.text = zrUtil.retrieve(
-                        maModel.getFormattedLabel(idx, 'normal'),
-                        defaultValue
-                    );
-                }
-                else {
-                    polygon.style.text = '';
-                }
-
-                if (labelHoverModel.getShallow('show')) {
-                    graphic.setText(polygon.hoverStyle, labelHoverModel, textColor);
-                    polygon.hoverStyle.text = zrUtil.retrieve(
-                        maModel.getFormattedLabel(idx, 'emphasis'),
-                        defaultValue
-                    );
-                }
-                else {
-                    polygon.hoverStyle.text = '';
-                }
+                graphic.setText(polygon.hoverStyle, labelHoverModel, textColor);
+                polygon.hoverStyle.text = zrUtil.retrieve(
+                    maModel.getFormattedLabel(idx, 'emphasis'),
+                    defaultValue
+                );
 
                 graphic.setHoverStyle(polygon, {});
 

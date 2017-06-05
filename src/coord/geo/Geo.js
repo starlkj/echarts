@@ -36,7 +36,7 @@ define(function (require) {
          */
         this.map = map;
 
-        this._nameCoordMap = zrUtil.createHashMap();
+        this._nameCoordMap = {};
 
         this.loadGeoJson(geoJson, specialAreas, nameMap);
     }
@@ -80,19 +80,19 @@ define(function (require) {
                 this.regions = geoJson ? parseGeoJson(geoJson) : [];
             }
             catch (e) {
-                throw 'Invalid geoJson format\n' + e.message;
+                throw 'Invalid geoJson format\n' + e;
             }
             specialAreas = specialAreas || {};
             nameMap = nameMap || {};
             var regions = this.regions;
-            var regionsMap = zrUtil.createHashMap();
+            var regionsMap = {};
             for (var i = 0; i < regions.length; i++) {
                 var regionName = regions[i].name;
                 // Try use the alias in nameMap
-                regionName = nameMap.hasOwnProperty(regionName) ? nameMap[regionName] : regionName;
+                regionName = nameMap[regionName] || regionName;
                 regions[i].name = regionName;
 
-                regionsMap.set(regionName, regions[i]);
+                regionsMap[regionName] = regions[i];
                 // Add geoJson
                 this.addGeoCoord(regionName, regions[i].center);
 
@@ -144,7 +144,7 @@ define(function (require) {
          * @return {module:echarts/coord/geo/Region}
          */
         getRegion: function (name) {
-            return this._regionsMap.get(name);
+            return this._regionsMap[name];
         },
 
         getRegionByCoord: function (coord) {
@@ -162,7 +162,7 @@ define(function (require) {
          * @param {Array.<number>} geoCoord
          */
         addGeoCoord: function (name, geoCoord) {
-            this._nameCoordMap.set(name, geoCoord);
+            this._nameCoordMap[name] = geoCoord;
         },
 
         /**
@@ -171,7 +171,7 @@ define(function (require) {
          * @return {Array.<number>}
          */
         getGeoCoord: function (name) {
-            return this._nameCoordMap.get(name);
+            return this._nameCoordMap[name];
         },
 
         // Overwrite
@@ -208,6 +208,7 @@ define(function (require) {
             }, this);
         },
 
+        // Overwrite
         /**
          * @param {string|Array.<number>} data
          * @return {Array.<number>}
@@ -220,37 +221,10 @@ define(function (require) {
             if (data) {
                 return View.prototype.dataToPoint.call(this, data);
             }
-        },
-
-        /**
-         * @inheritDoc
-         */
-        convertToPixel: zrUtil.curry(doConvert, 'dataToPoint'),
-
-        /**
-         * @inheritDoc
-         */
-        convertFromPixel: zrUtil.curry(doConvert, 'pointToData')
-
+        }
     };
 
     zrUtil.mixin(Geo, View);
-
-    function doConvert(methodName, ecModel, finder, value) {
-        var geoModel = finder.geoModel;
-        var seriesModel = finder.seriesModel;
-
-        var coordSys = geoModel
-            ? geoModel.coordinateSystem
-            : seriesModel
-            ? (
-                seriesModel.coordinateSystem // For map.
-                || (seriesModel.getReferringComponents('geo')[0] || {}).coordinateSystem
-            )
-            : null;
-
-        return coordSys === this ? coordSys[methodName](value) : null;
-    }
 
     return Geo;
 });

@@ -1,7 +1,10 @@
 define(function (require) {
 
     var textContain = require('zrender/contain/text');
-    var graphicUtil = require('../../util/graphic');
+
+    function getShallow(model, path) {
+        return model && model.getShallow(path);
+    }
 
     return {
         /**
@@ -19,20 +22,24 @@ define(function (require) {
          * @return {string}
          */
         getFont: function () {
-            return graphicUtil.getFont({
-                fontStyle: this.getShallow('fontStyle'),
-                fontWeight: this.getShallow('fontWeight'),
-                fontSize: this.getShallow('fontSize'),
-                fontFamily: this.getShallow('fontFamily')
-            }, this.ecModel);
+            var ecModel = this.ecModel;
+            var gTextStyleModel = ecModel && ecModel.getModel('textStyle');
+            return [
+                // FIXME in node-canvas fontWeight is before fontStyle
+                this.getShallow('fontStyle') || getShallow(gTextStyleModel, 'fontStyle'),
+                this.getShallow('fontWeight') || getShallow(gTextStyleModel, 'fontWeight'),
+                (this.getShallow('fontSize') || getShallow(gTextStyleModel, 'fontSize') || 12) + 'px',
+                this.getShallow('fontFamily') || getShallow(gTextStyleModel, 'fontFamily') || 'sans-serif'
+            ].join(' ');
         },
 
         getTextRect: function (text) {
+            var textStyle = this.get('textStyle') || {};
             return textContain.getBoundingRect(
                 text,
                 this.getFont(),
-                this.getShallow('align'),
-                this.getShallow('baseline')
+                textStyle.align,
+                textStyle.baseline
             );
         },
 

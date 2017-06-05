@@ -4,15 +4,11 @@ define(function(require) {
 
     var zrUtil = require('zrender/core/util');
     var formatUtil = require('../util/format');
-    var classUtil = require('../util/clazz');
     var modelUtil = require('../util/model');
     var ComponentModel = require('./Component');
     var colorPaletteMixin = require('./mixin/colorPalette');
     var env = require('zrender/core/env');
-    var layout = require('../util/layout');
 
-    var set = classUtil.set;
-    var get = classUtil.get;
     var encodeHTML = formatUtil.encodeHTML;
     var addCommas = formatUtil.addCommas;
 
@@ -46,14 +42,6 @@ define(function(require) {
          */
         visualColorAccessPath: 'itemStyle.normal.color',
 
-        /**
-         * Support merge layout params.
-         * Only support 'box' now (left/right/top/bottom/width/height).
-         * @type {string|Object} Object can be {ignoreSize: true}
-         * @readOnly
-         */
-        layoutMode: null,
-
         init: function (option, parentModel, ecModel, extraOpt) {
 
             /**
@@ -64,22 +52,18 @@ define(function(require) {
 
             this.mergeDefaultAndTheme(option, ecModel);
 
-            var data = this.getInitialData(option, ecModel);
-            if (__DEV__) {
-                zrUtil.assert(data, 'getInitialData returned invalid data.');
-            }
             /**
              * @type {module:echarts/data/List|module:echarts/data/Tree|module:echarts/data/Graph}
              * @private
              */
-            set(this, 'dataBeforeProcessed', data);
+            this._dataBeforeProcessed = this.getInitialData(option, ecModel);
 
-            // If we reverse the order (make data firstly, and then make
-            // dataBeforeProcessed by cloneShallow), cloneShallow will
-            // cause data.graph.data !== data when using
+            // If we reverse the order (make this._data firstly, and then make
+            // this._dataBeforeProcessed by cloneShallow), cloneShallow will
+            // cause this._data.graph.data !== this._data when using
             // module:echarts/data/Graph or module:echarts/data/Tree.
             // See module:echarts/data/helper/linkList
-            this.restoreData();
+            this._data = this._dataBeforeProcessed.cloneShallow();
         },
 
         /**
@@ -88,10 +72,6 @@ define(function(require) {
          * @param  {module:echarts/model/Global} ecModel
          */
         mergeDefaultAndTheme: function (option, ecModel) {
-            var layoutMode = this.layoutMode;
-            var inputPositionParams = layoutMode
-                ? layout.getLayoutParams(option) : {};
-
             zrUtil.merge(
                 option,
                 ecModel.getTheme().get(this.subType)
@@ -103,26 +83,17 @@ define(function(require) {
             modelUtil.defaultEmphasis(option.label, modelUtil.LABEL_OPTIONS);
 
             this.fillDataTextStyle(option.data);
-
-            if (layoutMode) {
-                layout.mergeLayoutParam(option, inputPositionParams, layoutMode);
-            }
         },
 
         mergeOption: function (newSeriesOption, ecModel) {
             newSeriesOption = zrUtil.merge(this.option, newSeriesOption, true);
             this.fillDataTextStyle(newSeriesOption.data);
 
-            var layoutMode = this.layoutMode;
-            if (layoutMode) {
-                layout.mergeLayoutParam(this.option, newSeriesOption, layoutMode);
-            }
-
             var data = this.getInitialData(newSeriesOption, ecModel);
             // TODO Merge data?
             if (data) {
-                set(this, 'data', data);
-                set(this, 'dataBeforeProcessed', data.cloneShallow());
+                this._data = data;
+                this._dataBeforeProcessed = data.cloneShallow();
             }
         },
 
@@ -150,15 +121,14 @@ define(function(require) {
          * @return {module:echarts/data/List}
          */
         getData: function (dataType) {
-            var data = get(this, 'data');
-            return dataType == null ? data : data.getLinkedData(dataType);
+            return dataType == null ? this._data : this._data.getLinkedData(dataType);
         },
 
         /**
          * @param {module:echarts/data/List} data
          */
         setData: function (data) {
-            set(this, 'data', data);
+            this._data = data;
         },
 
         /**
@@ -166,7 +136,7 @@ define(function(require) {
          * @return {module:echarts/data/List}
          */
         getRawData: function () {
-            return get(this, 'dataBeforeProcessed');
+            return this._dataBeforeProcessed;
         },
 
         /**
@@ -182,7 +152,7 @@ define(function(require) {
          * @return {Array.<string>} dimensions on the axis.
          */
         coordDimToDataDim: function (coordDim) {
-            return modelUtil.coordDimToDataDim(this.getData(), coordDim);
+            return [coordDim];
         },
 
         /**
@@ -192,7 +162,7 @@ define(function(require) {
          * @return {string}
          */
         dataDimToCoordDim: function (dataDim) {
-            return modelUtil.dataDimToCoordDim(this.getData(), dataDim);
+            return dataDim;
         },
 
         /**
@@ -216,55 +186,32 @@ define(function(require) {
          */
         formatTooltip: function (dataIndex, multipleSeries, dataType) {
             function formatArrayValue(value) {
-                var vertially = zrUtil.reduce(value, function (vertially, val, idx) {
-                    var dimItem = data.getDimensionInfo(idx);
-                    return vertially |= dimItem && dimItem.tooltip !== false && dimItem.tooltipName != null;
-                }, 0);
-
-                var result = [];
-                var tooltipDims = modelUtil.otherDimToDataDim(data, 'tooltip');
-
-                tooltipDims.length
-                    ? zrUtil.each(tooltipDims, function (dimIdx) {
-                        setEachItem(data.get(dimIdx, dataIndex), dimIdx);
-                    })
-                    // By default, all dims is used on tooltip.
-                    : zrUtil.each(value, setEachItem);
-
-                function setEachItem(val, dimIdx) {
-                    var dimInfo = data.getDimensionInfo(dimIdx);
-                    // If `dimInfo.tooltip` is not set, show tooltip.
-                    if (!dimInfo || dimInfo.otherDims.tooltip === false) {
-                        return;
+                return zrUtil.map(value, function (val, idx) {
+                    var dimInfo = data.getDimensionInfo(idx);
+                    var dimType = dimInfo && dimInfo.type;
+                    if (dimType === 'ordinal') {
+                        return val;
                     }
-                    var dimType = dimInfo.type;
-                    var valStr = (vertially ? '- ' + (dimInfo.tooltipName || dimInfo.name) + ': ' : '')
-                        + (dimType === 'ordinal'
-                            ? val + ''
-                            : dimType === 'time'
-                            ? (multipleSeries ? '' : formatUtil.formatTime('yyyy/MM/dd hh:mm:ss', val))
-                            : addCommas(val)
-                        );
-                    valStr && result.push(encodeHTML(valStr));
-                }
-
-                return (vertially ? '<br/>' : '') + result.join(vertially ? '<br/>' : ', ');
+                    else if (dimType === 'time') {
+                        return multipleSeries ? '' : formatUtil.formatTime('yyyy/mm/dd hh:mm:ss', val);
+                    }
+                    else {
+                        return addCommas(val);
+                    }
+                }).filter(function (val) {
+                    return !!val;
+                }).join(', ');
             }
 
-            var data = get(this, 'data');
+            var data = this._data;
 
             var value = this.getRawValue(dataIndex);
             var formattedValue = zrUtil.isArray(value)
-                ? formatArrayValue(value) : encodeHTML(addCommas(value));
+                ? formatArrayValue(value) : addCommas(value);
             var name = data.getName(dataIndex);
-
             var color = data.getItemVisual(dataIndex, 'color');
-            if (zrUtil.isObject(color) && color.colorStops) {
-                color = (color.colorStops[0] || {}).color;
-            }
-            color = color || 'transparent';
-
-            var colorEl = formatUtil.getTooltipMarker(color);
+            var colorEl = '<span style="display:inline-block;margin-right:5px;'
+                + 'border-radius:10px;width:9px;height:9px;background-color:' + color + '"></span>';
 
             var seriesName = this.name;
             // FIXME
@@ -272,22 +219,19 @@ define(function(require) {
                 // Not show '-'
                 seriesName = '';
             }
-            seriesName = seriesName
-                ? encodeHTML(seriesName) + (!multipleSeries ? '<br/>' : ': ')
-                : '';
             return !multipleSeries
-                ? seriesName + colorEl
+                ? ((seriesName && encodeHTML(seriesName) + '<br />') + colorEl
                     + (name
-                        ? encodeHTML(name) + ': ' + formattedValue
-                        : formattedValue
-                    )
-                : colorEl + seriesName + formattedValue;
+                        ? encodeHTML(name) + ' : ' + formattedValue
+                        : formattedValue)
+                  )
+                : (colorEl + encodeHTML(this.name) + ' : ' + formattedValue);
         },
 
         /**
          * @return {boolean}
          */
-        isAnimationEnabled: function () {
+        ifEnableAnimation: function () {
             if (env.node) {
                 return false;
             }
@@ -302,7 +246,7 @@ define(function(require) {
         },
 
         restoreData: function () {
-            set(this, 'data', get(this, 'dataBeforeProcessed').cloneShallow());
+            this._data = this._dataBeforeProcessed.cloneShallow();
         },
 
         getColorFromPalette: function (name, scope) {
@@ -315,23 +259,7 @@ define(function(require) {
             return color;
         },
 
-        /**
-         * Get data indices for show tooltip content. See tooltip.
-         * @abstract
-         * @param {Array.<string>|string} dim
-         * @param {Array.<number>} value
-         * @param {module:echarts/coord/single/SingleAxis} baseAxis
-         * @return {Object} {dataIndices, nestestValue}.
-         */
-        getAxisTooltipData: null,
-
-        /**
-         * See tooltip.
-         * @abstract
-         * @param {number} dataIndex
-         * @return {Array.<number>} Point of tooltip. null/undefined can be returned.
-         */
-        getTooltipPosition: null
+        getAxisTooltipDataIndex: null
     });
 
     zrUtil.mixin(SeriesModel, modelUtil.dataFormatMixin);

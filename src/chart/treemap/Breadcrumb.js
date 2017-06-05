@@ -3,13 +3,12 @@
     var graphic = require('../../util/graphic');
     var layout = require('../../util/layout');
     var zrUtil = require('zrender/core/util');
-    var helper = require('./helper');
 
     var TEXT_PADDING = 8;
     var ITEM_GAP = 8;
     var ARRAY_LENGTH = 5;
 
-    function Breadcrumb(containerGroup) {
+    function Breadcrumb(containerGroup, onSelect) {
         /**
          * @private
          * @type {module:zrender/container/Group}
@@ -17,13 +16,19 @@
         this.group = new graphic.Group();
 
         containerGroup.add(this.group);
+
+        /**
+         * @private
+         * @type {Function}
+         */
+        this._onSelect = onSelect || zrUtil.noop;
     }
 
     Breadcrumb.prototype = {
 
         constructor: Breadcrumb,
 
-        render: function (seriesModel, api, targetNode, onSelect) {
+        render: function (seriesModel, api, targetNode) {
             var model = seriesModel.getModel('breadcrumb');
             var thisGroup = this.group;
 
@@ -53,17 +58,21 @@
                 renderList: []
             };
 
-            this._prepare(targetNode, layoutParam, textStyleModel);
-            this._renderContent(seriesModel, layoutParam, normalStyleModel, textStyleModel, onSelect);
+            this._prepare(
+                model, targetNode, layoutParam, textStyleModel
+            );
+            this._renderContent(
+                model, targetNode, layoutParam, normalStyleModel, textStyleModel
+            );
 
-            layout.positionElement(thisGroup, layoutParam.pos, layoutParam.box);
+            layout.positionGroup(thisGroup, layoutParam.pos, layoutParam.box);
         },
 
         /**
          * Prepare render list and total width
          * @private
          */
-        _prepare: function (targetNode, layoutParam, textStyleModel) {
+        _prepare: function (model, targetNode, layoutParam, textStyleModel) {
             for (var node = targetNode; node; node = node.parentNode) {
                 var text = node.getModel().get('name');
                 var textRect = textStyleModel.getTextRect(text);
@@ -80,19 +89,18 @@
          * @private
          */
         _renderContent: function (
-            seriesModel, layoutParam, normalStyleModel, textStyleModel, onSelect
+            model, targetNode, layoutParam, normalStyleModel, textStyleModel
         ) {
             // Start rendering.
             var lastX = 0;
             var emptyItemWidth = layoutParam.emptyItemWidth;
-            var height = seriesModel.get('breadcrumb.height');
+            var height = model.get('height');
             var availableSize = layout.getAvailableSize(layoutParam.pos, layoutParam.box);
             var totalWidth = layoutParam.totalWidth;
             var renderList = layoutParam.renderList;
 
             for (var i = renderList.length - 1; i >= 0; i--) {
                 var item = renderList[i];
-                var itemNode = item.node;
                 var itemWidth = item.width;
                 var text = item.text;
 
@@ -103,7 +111,7 @@
                     text = '';
                 }
 
-                var el = new graphic.Polygon({
+                this.group.add(new graphic.Polygon({
                     shape: {
                         points: makeItemPoints(
                             lastX, 0, itemWidth, height,
@@ -120,11 +128,8 @@
                         }
                     ),
                     z: 10,
-                    onclick: zrUtil.curry(onSelect, itemNode)
-                });
-                this.group.add(el);
-
-                packEventData(el, seriesModel, itemNode);
+                    onclick: zrUtil.bind(this._onSelect, this, item.node)
+                }));
 
                 lastX += itemWidth + ITEM_GAP;
             }
@@ -148,23 +153,6 @@
         !tail && points.splice(2, 0, [x + itemWidth + ARRAY_LENGTH, y + itemHeight / 2]);
         !head && points.push([x, y + itemHeight / 2]);
         return points;
-    }
-
-    // Package custom mouse event.
-    function packEventData(el, seriesModel, itemNode) {
-        el.eventData = {
-            componentType: 'series',
-            componentSubType: 'treemap',
-            seriesIndex: seriesModel.componentIndex,
-            seriesName: seriesModel.name,
-            seriesType: 'treemap',
-            selfType: 'breadcrumb', // Distinguish with click event on treemap node.
-            nodeData: {
-                dataIndex: itemNode && itemNode.dataIndex,
-                name: itemNode && itemNode.name
-            },
-            treePathInfo: itemNode && helper.wrapTreePathInfo(itemNode, seriesModel)
-        };
     }
 
     return Breadcrumb;

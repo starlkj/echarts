@@ -92,15 +92,8 @@ define(function(require) {
         var brushMode = this._brushMode;
 
         if (type === 'clear') {
-            // Trigger parallel action firstly
-            api.dispatchAction({
-                type: 'axisAreaSelect',
-                intervals: []
-            });
-
             api.dispatchAction({
                 type: 'brush',
-                command: 'clear',
                 // Clear all areas of all brush components.
                 areas: []
             });

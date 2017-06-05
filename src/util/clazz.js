@@ -6,37 +6,7 @@ define(function (require) {
 
     var TYPE_DELIMITER = '.';
     var IS_CONTAINER = '___EC__COMPONENT__CONTAINER___';
-    var MEMBER_PRIFIX = '\0ec_\0';
-
     /**
-     * Hide private class member.
-     * The same behavior as `host[name] = value;` (can be right-value)
-     * @public
-     */
-    clazz.set = function (host, name, value) {
-        return (host[MEMBER_PRIFIX + name] = value);
-    };
-
-    /**
-     * Hide private class member.
-     * The same behavior as `host[name];`
-     * @public
-     */
-    clazz.get = function (host, name) {
-        return host[MEMBER_PRIFIX + name];
-    };
-
-    /**
-     * For hidden private class member.
-     * The same behavior as `host.hasOwnProperty(name);`
-     * @public
-     */
-    clazz.hasOwn = function (host, name) {
-        return host.hasOwnProperty(MEMBER_PRIFIX + name);
-    };
-
-    /**
-     * Notice, parseClassType('') should returns {main: '', sub: ''}
      * @public
      */
     var parseClassType = clazz.parseClassType = function (componentType) {
@@ -48,36 +18,13 @@ define(function (require) {
         }
         return ret;
     };
-
     /**
      * @public
      */
-    function checkClassType(componentType) {
-        zrUtil.assert(
-            /^[a-zA-Z0-9_]+([.][a-zA-Z0-9_]+)?$/.test(componentType),
-            'componentType "' + componentType + '" illegal'
-        );
-    }
-
-    /**
-     * @public
-     */
-    clazz.enableClassExtend = function (RootClass, mandatoryMethods) {
+    clazz.enableClassExtend = function (RootClass) {
 
         RootClass.$constructor = RootClass;
         RootClass.extend = function (proto) {
-
-            if (__DEV__) {
-                zrUtil.each(mandatoryMethods, function (method) {
-                    if (!proto[method]) {
-                        console.warn(
-                            'Method `' + method + '` should be implemented'
-                            + (proto.type ? ' in ' + proto.type : '') + '.'
-                        );
-                    }
-                });
-            }
-
             var superClass = this;
             var ExtendedClass = function () {
                 if (!proto.$constructor) {
@@ -136,7 +83,6 @@ define(function (require) {
 
         entity.registerClass = function (Clazz, componentType) {
             if (componentType) {
-                checkClassType(componentType);
                 componentType = parseClassType(componentType);
 
                 if (!componentType.sub) {
@@ -155,8 +101,8 @@ define(function (require) {
             return Clazz;
         };
 
-        entity.getClass = function (componentMainType, subType, throwWhenNotFound) {
-            var Clazz = storage[componentMainType];
+        entity.getClass = function (componentTypeMain, subType, throwWhenNotFound) {
+            var Clazz = storage[componentTypeMain];
 
             if (Clazz && Clazz[IS_CONTAINER]) {
                 Clazz = subType ? Clazz[subType] : null;
@@ -164,9 +110,7 @@ define(function (require) {
 
             if (throwWhenNotFound && !Clazz) {
                 throw new Error(
-                    !subType
-                        ? componentMainType + '.' + 'type should be specified.'
-                        : 'Component ' + componentMainType + '.' + (subType || '') + ' not exists. Load it first.'
+                    'Component ' + componentTypeMain + '.' + (subType || '') + ' not exists. Load it first.'
                 );
             }
 

@@ -174,9 +174,7 @@ define(function (require) {
             }
 
             this._data = seriesModel.getData();
-        },
-
-        dispose: function () {}
+        }
     });
 
     // add animation to the view

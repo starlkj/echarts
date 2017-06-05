@@ -13,9 +13,9 @@ define(function (require) {
 
         updateSelectedMap: function (targetList) {
             this._selectTargetMap = zrUtil.reduce(targetList || [], function (targetMap, target) {
-                targetMap.set(target.name, target);
+                targetMap[target.name] = target;
                 return targetMap;
-            }, zrUtil.createHashMap());
+            }, {});
         },
         /**
          * @param {string} name
@@ -23,10 +23,10 @@ define(function (require) {
         // PENGING If selectedMode is null ?
         select: function (name) {
             var targetMap = this._selectTargetMap;
-            var target = targetMap.get(name);
+            var target = targetMap[name];
             var selectedMode = this.get('selectedMode');
             if (selectedMode === 'single') {
-                targetMap.each(function (target) {
+                zrUtil.each(targetMap, function (target) {
                     target.selected = false;
                 });
             }
@@ -37,7 +37,7 @@ define(function (require) {
          * @param {string} name
          */
         unSelect: function (name) {
-            var target = this._selectTargetMap.get(name);
+            var target = this._selectTargetMap[name];
             // var selectedMode = this.get('selectedMode');
             // selectedMode !== 'single' && target && (target.selected = false);
             target && (target.selected = false);
@@ -47,7 +47,7 @@ define(function (require) {
          * @param {string} name
          */
         toggleSelected: function (name) {
-            var target = this._selectTargetMap.get(name);
+            var target = this._selectTargetMap[name];
             if (target != null) {
                 this[target.selected ? 'unSelect' : 'select'](name);
                 return target.selected;
@@ -58,7 +58,7 @@ define(function (require) {
          * @param {string} name
          */
         isSelected: function (name) {
-            var target = this._selectTargetMap.get(name);
+            var target = this._selectTargetMap[name];
             return target && target.selected;
         }
     };

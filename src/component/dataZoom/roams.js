@@ -23,14 +23,12 @@ define(function(require) {
          * @param {module:echarts/ExtensionAPI} api
          * @param {Object} dataZoomInfo
          * @param {string} dataZoomInfo.coordId
-         * @param {Function} dataZoomInfo.containsPoint
+         * @param {Object} dataZoomInfo.coordinateSystem
          * @param {Array.<string>} dataZoomInfo.allCoordIds
          * @param {string} dataZoomInfo.dataZoomId
          * @param {number} dataZoomInfo.throttleRate
          * @param {Function} dataZoomInfo.panGetRange
          * @param {Function} dataZoomInfo.zoomGetRange
-         * @param {boolean} [dataZoomInfo.zoomLock]
-         * @param {boolean} [dataZoomInfo.disabled]
          */
         register: function (api, dataZoomInfo) {
             var store = giveStore(api);
@@ -38,7 +36,6 @@ define(function(require) {
             var theCoordId = dataZoomInfo.coordId;
 
             // Do clean when a dataZoom changes its target coordnate system.
-            // Avoid memory leak, dispose all not-used-registered.
             zrUtil.each(store, function (record, coordId) {
                 var dataZoomInfos = record.dataZoomInfos;
                 if (dataZoomInfos[theDataZoomId]
@@ -52,6 +49,7 @@ define(function(require) {
             cleanStore(store);
 
             var record = store[theCoordId];
+
             // Create if needed.
             if (!record) {
                 record = store[theCoordId] = {
@@ -59,16 +57,15 @@ define(function(require) {
                     dataZoomInfos: {},
                     count: 0
                 };
-                record.controller = createController(api, record);
+                record.controller = createController(api, dataZoomInfo, record);
                 record.dispatchAction = zrUtil.curry(dispatchAction, api);
             }
-            record.controller.enable(
-                dataZoomInfo.disabled ? false : dataZoomInfo.zoomLock ? 'move' : true,
-                dataZoomInfo.roamControllerOpt
-            );
 
             // Consider resize, area should be always updated.
-            record.controller.setPointerChecker(dataZoomInfo.containsPoint);
+            var rect = dataZoomInfo.coordinateSystem.getRect().clone();
+            record.controller.rectProvider = function () {
+                return rect;
+            };
 
             // Update throttle.
             throttle.createOrUpdate(
@@ -92,7 +89,6 @@ define(function(require) {
             var store = giveStore(api);
 
             zrUtil.each(store, function (record) {
-                record.controller.dispose();
                 var dataZoomInfos = record.dataZoomInfos;
                 if (dataZoomInfos[dataZoomId]) {
                     delete dataZoomInfos[dataZoomId];
@@ -136,8 +132,9 @@ define(function(require) {
         return zr[ATTR] || (zr[ATTR] = {});
     }
 
-    function createController(api, newRecord) {
+    function createController(api, dataZoomInfo, newRecord) {
         var controller = new RoamController(api.getZr());
+        controller.enable();
         controller.on('pan', curry(onPan, newRecord));
         controller.on('zoom', curry(onZoom, newRecord));
 
@@ -147,15 +144,15 @@ define(function(require) {
     function cleanStore(store) {
         zrUtil.each(store, function (record, coordId) {
             if (!record.count) {
-                record.controller.dispose();
+                record.controller.off('pan').off('zoom');
                 delete store[coordId];
             }
         });
     }
 
-    function onPan(record, dx, dy, oldX, oldY, newX, newY) {
+    function onPan(record, dx, dy) {
         wrapAndDispatch(record, function (info) {
-            return info.panGetRange(record.controller, dx, dy, oldX, oldY, newX, newY);
+            return info.panGetRange(record.controller, dx, dy);
         });
     }
 

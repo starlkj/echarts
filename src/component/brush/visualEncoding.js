@@ -9,7 +9,7 @@ define(function (require) {
     var BoundingRect = require('zrender/core/BoundingRect');
     var selector = require('./selector');
     var throttle = require('../../util/throttle');
-    var BrushTargetManager = require('../helper/BrushTargetManager');
+    var brushHelper = require('../helper/brushHelper');
 
     var STATE_LIST = ['inBrush', 'outOfBrush'];
     var DISPATCH_METHOD = '__ecBrushSelect';
@@ -26,9 +26,9 @@ define(function (require) {
                 payload.key === 'brush' ? payload.brushOption : {brushType: false}
             );
 
-            var brushTargetManager = brushModel.brushTargetManager = new BrushTargetManager(brushModel.option, ecModel);
+            brushModel.coordInfoList = brushHelper.makeCoordInfoList(brushModel.option, ecModel);
 
-            brushTargetManager.setInputRanges(brushModel.areas, ecModel);
+            brushHelper.parseInputRanges(brushModel, ecModel);
         });
     });
 
@@ -120,7 +120,7 @@ define(function (require) {
 
             function stepAParallel(seriesModel, seriesIndex) {
                 var coordSys = seriesModel.coordinateSystem;
-                hasBrushExists |= coordSys.hasAxisBrushed();
+                hasBrushExists |= coordSys.hasAxisbrushed();
 
                 linkOthers(seriesIndex) && coordSys.eachActiveState(
                     seriesModel.getData(),
@@ -138,7 +138,7 @@ define(function (require) {
 
                 zrUtil.each(areas, function (area) {
                     selectorsByBrushType[area.brushType]
-                        && brushModel.brushTargetManager.controlSeries(area, seriesModel, ecModel)
+                        && brushHelper.controlSeries(area, brushModel, seriesModel)
                         && rangeInfoList.push(area);
                     hasBrushExists |= brushed(rangeInfoList);
                 });
@@ -235,14 +235,14 @@ define(function (require) {
     function checkInRange(selectorsByBrushType, rangeInfoList, data, dataIndex) {
         var itemLayout = data.getItemLayout(dataIndex);
         if( itemLayout ) {	// add by eltriny - #20161017-01 : Select Brush 오류 처리
-            for (var i = 0, len = rangeInfoList.length; i < len; i++) {
-                var area = rangeInfoList[i];
-                if (selectorsByBrushType[area.brushType](
-                        dataIndex, data, area.selectors, area
-                    )) {
-                    return true;
-                }
-            }
+        	for (var i = 0, len = rangeInfoList.length; i < len; i++) {
+        		var area = rangeInfoList[i];
+        		if (selectorsByBrushType[area.brushType](
+        				itemLayout, area.selectors, area
+        		)) {
+        			return true;
+        		}
+        	}
         }
     }
 
@@ -251,10 +251,7 @@ define(function (require) {
         if (zrUtil.isString(brushSelector)) {
             var sels = [];
             zrUtil.each(selector, function (selectorsByElementType, brushType) {
-                sels[brushType] = function (dataIndex, data, selectors, area) {
-                    var itemLayout = data.getItemLayout(dataIndex);
-                    return selectorsByElementType[brushSelector](itemLayout, selectors, area);
-                };
+                sels[brushType] = selectorsByElementType[brushSelector];
             });
             return sels;
         }

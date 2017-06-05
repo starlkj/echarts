@@ -11,8 +11,7 @@ define(function (require) {
 
             categoriesData.each(function (idx) {
                 var name = categoriesData.getName(idx);
-                // Add prefix to avoid conflict with Object.prototype.
-                categoryNameIdxMap['ec-' + name] = idx;
+                categoryNameIdxMap[name] = idx;
 
                 var itemModel = categoriesData.getItemModel(idx);
                 var color = itemModel.get('itemStyle.normal.color')
@@ -27,7 +26,7 @@ define(function (require) {
                     var category = model.getShallow('category');
                     if (category != null) {
                         if (typeof category === 'string') {
-                            category = categoryNameIdxMap['ec-' + category];
+                            category = categoryNameIdxMap[category];
                         }
                         if (!data.getItemVisual(idx, 'color', true)) {
                             data.setItemVisual(

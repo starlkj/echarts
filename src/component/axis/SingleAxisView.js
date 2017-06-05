@@ -3,7 +3,6 @@ define(function (require) {
     var AxisBuilder = require('./AxisBuilder');
     var zrUtil =  require('zrender/core/util');
     var graphic = require('../../util/graphic');
-    var singleAxisHelper = require('./singleAxisHelper');
     var getInterval = AxisBuilder.getInterval;
     var ifIgnoreOnTick = AxisBuilder.ifIgnoreOnTick;
 
@@ -11,21 +10,19 @@ define(function (require) {
         'axisLine', 'axisLabel', 'axisTick', 'axisName'
     ];
 
-    var selfBuilderAttr = 'splitLine';
+    var selfBuilderAttr = 'splitLine'; 
 
-    var SingleAxisView = require('./AxisView').extend({
+    var AxisView = require('../../echarts').extendComponentView({
 
         type: 'singleAxis',
 
-        axisPointerClass: 'SingleAxisPointer',
-
-        render: function (axisModel, ecModel, api, payload) {
+        render: function (axisModel, ecModel) {
 
             var group = this.group;
 
             group.removeAll();
 
-            var layout =  singleAxisHelper.layout(axisModel);
+            var layout =  axisLayout(axisModel);
 
             var axisBuilder = new AxisBuilder(axisModel, layout);
 
@@ -36,17 +33,10 @@ define(function (require) {
             if (axisModel.get(selfBuilderAttr + '.show')) {
                 this['_' + selfBuilderAttr](axisModel, layout.labelInterval);
             }
-
-            SingleAxisView.superCall(this, 'render', axisModel, ecModel, api, payload);
         },
 
         _splitLine: function(axisModel, labelInterval) {
             var axis = axisModel.axis;
-
-            if (axis.scale.isBlank()) {
-                return;
-            }
-
             var splitLineModel = axisModel.getModel('splitLine');
             var lineStyleModel = splitLineModel.getModel('lineStyle');
             var lineWidth = lineStyleModel.get('width');
@@ -104,7 +94,7 @@ define(function (require) {
                 this.group.add(graphic.mergePath(splitLines[i], {
                     style: {
                         stroke: lineColors[i % lineColors.length],
-                        lineDash: lineStyleModel.getLineDash(lineWidth),
+                        lineDash: lineStyleModel.getLineDash(),
                         lineWidth: lineWidth
                     },
                     silent: true
@@ -113,6 +103,59 @@ define(function (require) {
         }
     });
 
-    return SingleAxisView;
+    function axisLayout(axisModel) {
 
+        var single = axisModel.coordinateSystem;
+        var axis = axisModel.axis;
+        var layout = {};
+
+        var axisPosition = axis.position;
+        var orient = axis.orient;
+
+        var rect = single.getRect();
+        var rectBound = [rect.x, rect.x + rect.width, rect.y, rect.y + rect.height];
+
+        var positionMap = {
+            horizontal: {top: rectBound[2], bottom: rectBound[3]},
+            vertical: {left: rectBound[0], right: rectBound[1]}
+        };
+
+        layout.position = [
+            orient === 'vertical' 
+                ? positionMap.vertical[axisPosition] 
+                : rectBound[0],
+            orient === 'horizontal' 
+                ? positionMap.horizontal[axisPosition] 
+                : rectBound[3]
+        ];
+
+        var r = {horizontal: 0, vertical: 1};
+        layout.rotation = Math.PI / 2 * r[orient];
+
+        var directionMap = {top: -1, bottom: 1, right: 1, left: -1};
+
+        layout.labelDirection = layout.tickDirection  
+            = layout.nameDirection 
+            = directionMap[axisPosition];
+
+        if (axisModel.getModel('axisTick').get('inside')) {
+            layout.tickDirection = -layout.tickDirection;
+        }
+
+        if (axisModel.getModel('axisLabel').get('inside')) {
+            layout.labelDirection = -layout.labelDirection;
+        }
+
+        var labelRotation = axisModel.getModel('axisLabel').get('rotate');
+        layout.labelRotation = axisPosition === 'top' ? -labelRotation : labelRotation;
+
+        layout.labelInterval = axis.getLabelInterval();
+
+        layout.z2 = 1;
+
+        return layout;
+    }
+
+    return AxisView;
+    
 });

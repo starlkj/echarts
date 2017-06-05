@@ -496,24 +496,7 @@ define(function(require) {
          * @param {number} dataIndex
          * @return {string} state See this.stateList
          */
-        getValueState: noop,
-
-        /**
-         * FIXME
-         * Do not publish to thirt-part-dev temporarily
-         * util the interface is stable. (Should it return
-         * a function but not visual meta?)
-         *
-         * @pubilc
-         * @abstract
-         * @param {Function} getColorVisual
-         *        params: value, valueState
-         *        return: color
-         * @return {Object} visualMeta
-         *        should includes {stops, outerColors}
-         *        outerColor means [colorBeyondMinValue, colorBeyondMaxValue]
-         */
-        getVisualMeta: noop
+        getValueState: noop
 
     });
 

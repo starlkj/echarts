@@ -214,8 +214,6 @@ define(function (require) {
         remove: function () {
             this.group.removeAll();
             this._data = null;
-        },
-
-        dispose: function () {}
+        }
     });
 });

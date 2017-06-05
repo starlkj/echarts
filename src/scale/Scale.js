@@ -6,12 +6,7 @@ define(function (require) {
 
     var clazzUtil = require('../util/clazz');
 
-    /**
-     * @param {Object} [setting]
-     */
-    function Scale(setting) {
-        this._setting = setting || {};
-
+    function Scale() {
         /**
          * Extent
          * @type {Array.<number>}
@@ -42,10 +37,6 @@ define(function (require) {
         // before extent set (like in dataZoom), it would be wrong.
         // Nevertheless, parse does not depend on extent generally.
         return val;
-    };
-
-    scaleProto.getSetting = function (name) {
-        return this._setting[name];
     };
 
     scaleProto.contain = function (val) {
@@ -89,15 +80,6 @@ define(function (require) {
     };
 
     /**
-     * Set extent from data
-     * @param {module:echarts/data/List} data
-     * @param {string} dim
-     */
-    scaleProto.unionExtentFromData = function (data, dim) {
-        this.unionExtent(data.getDataExtent(dim, true));
-    };
-
-    /**
      * Get extent
      * @return {Array.<number>}
      */
@@ -131,23 +113,6 @@ define(function (require) {
         }
         return labels;
     };
-
-    /**
-     * When axis extent depends on data and no data exists,
-     * axis ticks should not be drawn, which is named 'blank'.
-     */
-    scaleProto.isBlank = function () {
-        return this._isBlank;
-    },
-
-    /**
-     * When axis extent depends on data and no data exists,
-     * axis ticks should not be drawn, which is named 'blank'.
-     */
-    scaleProto.setBlank = function (isBlank) {
-        this._isBlank = isBlank;
-    };
-
 
     clazzUtil.enableClassExtend(Scale);
     clazzUtil.enableClassManagement(Scale, {

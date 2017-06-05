@@ -3,9 +3,8 @@ define(function(require) {
 
     var zrUtil = require('zrender/core/util');
     var BrushController = require('../../helper/BrushController');
-    var BrushTargetManager = require('../../helper/BrushTargetManager');
+    var brushHelper = require('../../helper/brushHelper');
     var history = require('../../dataZoom/history');
-    var sliderMove = require('../../helper/sliderMove');
 
     var each = zrUtil.each;
 
@@ -31,23 +30,17 @@ define(function(require) {
          */
         this._isZoomActive;
 
-        /**
-         * @private
-         * @type {boolean}
-         */
-        this._isZoomActive;
-
         // add by eltriny
         // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
         this.api = api;
-
+        
         // add by eltriny
         // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
         this._brushSelectData = null;
-
+        
         // add by eltriny
         // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
-        this.api.on( 'brushSelected', zrUtil.bind( this._onBrushSelected, this ) );
+        this.api.on( 'brushSelected', zrUtil.bind( this._onBrushSelected, this ) );        
     }
 
     DataZoom.defaultOption = {
@@ -69,21 +62,22 @@ define(function(require) {
         this.model = featureModel;
         this.ecModel = ecModel;
         this.api = api;
-
+        
         // add by eltriny - BugFix1 : toggleSelectZoom > 차트 새로고침을 아예 새로 그림으로 할 경우 이전의 설정값이 없어지므로...ecModel에 담아서 그 값을 가져오도록 처리
         if( 'undefined' == typeof this._isZoomActive && 'undefined' != typeof this.ecModel.__zoomActiveFlag ) {
-            this._isZoomActive = this.ecModel.__zoomActiveFlag;
+        	this._isZoomActive = this.ecModel.__zoomActiveFlag;
         }
 
-        updateZoomBtnStatus(featureModel, ecModel, this, payload, api);
+        updateZoomBtnStatus(featureModel, ecModel, this, payload);
         updateBackBtnStatus(featureModel, ecModel);
     };
 
-    proto.onclick = function (ecModel, api, type, isZoomActive) {
-        // add by eltriny
-        ( this.ecModel ) || ( this.ecModel = ecModel );
+    proto.onclick = function (ecModel, api, type, isZoomActive ) {
+    	
+    	// add by eltriny
+    	( this.ecModel ) || ( this.ecModel = ecModel );
         ( this.api ) || ( this.api = api );
-
+        
         // edit by eltriny
         // handlers[type].call(this);
         handlers[type].call( this, isZoomActive );
@@ -103,13 +97,14 @@ define(function(require) {
     var handlers = {
 
         zoom: function ( isZoomActive ) {
+        	
             var nextActive = !this._isZoomActive;
-
+            
             // add by eltriny - BugFix1 : toggleSelectZoom > toogle 여부를 체크하는 _isZoomActive가 정상적으로 업데이트가 안되는 상황에 대해서 강제 처리를 하기 위함
             if( 'boolean' == typeof isZoomActive ) {
-                nextActive = isZoomActive;
-                this._isZoomActive = isZoomActive;
-                this.ecModel.__zoomActiveFlag = isZoomActive;
+            	nextActive = isZoomActive;
+            	this._isZoomActive = isZoomActive;
+            	this.ecModel.__zoomActiveFlag = isZoomActive;
             }
 
             this.api.dispatchAction({
@@ -117,126 +112,130 @@ define(function(require) {
                 key: 'dataZoomSelect',
                 dataZoomSelectActive: nextActive
             });
+          
         },
 
         back: function () {
             this._dispatchZoomAction(history.pop(this.ecModel));
         }
     };
-
+    
+    
     /**
      * @private
      * add by eltriny
      */
-    proto._onBrushSelected = function ( selectedData ) {
-        this._brushSelectData = selectedData.batch;
+    proto._onBrushSelected = function ( selectedData ) {        	
+    	this._brushSelectData = selectedData.batch;         	
     };
 
     /**
      * @private
      */
     proto._onBrush = function (areas, opt) {
+    	
+    	// Brush의 Drag 이벤트가 이쪽으로 넘어온다....
+    	    	
         if (!opt.isEnd || !areas.length) {
             return;
         }
-
+        
         // add by eltriny - #20161017-02 : dataZoomDragEnd Event Start
-        // Brush Drag End 시 이벤트 발생
+        // Brush Drag End 시 이벤트 발생        
         if( opt.isDragEnd ) {
-            var modelId = this.model.id;
-            this.api.dispatchAction(
-                {
-                    type			: 'dataZoomDragEnd',
-                    brushId			: modelId,
+        	var modelId = this.model.id;
+        	this.api.dispatchAction( 
+        		{ 
+        			type			: 'dataZoomDragEnd',
+        			brushId			: modelId,
                     areas			: zrUtil.clone(areas),
                     $from			: modelId,
                     brushSelectData : zrUtil.clone( this._brushSelectData )
-                }
-            );
-
-            this._brushSelectData = null;
-        }
-
+        		} 
+        	);
+        	
+        	this._brushSelectData = null;
+        }        
+        
         if( opt.isEnd && opt.removeOnClick ) {
-            this.api.dispatchAction( { type: 'enableTip' } );
+        	this.api.dispatchAction( { type: 'enableTip' } );
         }
         else {
-            this.api.dispatchAction( { type: 'disableTip' } );
+        	this.api.dispatchAction( { type: 'disableTip' } );            	
         }
-        // add by eltriny - #20161017-02 : dataZoomDragEnd Event End
-
+        // add by eltriny - #20161017-02 : dataZoomDragEnd Event End        
+        
         var snapshot = {};
         var ecModel = this.ecModel;
 
         this._brushController.updateCovers([]); // remove cover
 
-        var brushTargetManager = new BrushTargetManager(
-            retrieveAxisSetting(this.model.option), ecModel, {include: ['grid']}
+        var coordInfoList = brushHelper.makeCoordInfoList(
+            retrieveAxisSetting(this.model.option), ecModel
         );
-        brushTargetManager.matchOutputRanges(areas, ecModel, function (area, coordRange, coordSys) {
-            if (coordSys.type !== 'cartesian2d') {
-                return;
-            }
+        var rangesCoordInfoList = [];
+        brushHelper.parseOutputRanges(areas, coordInfoList, ecModel, rangesCoordInfoList);
 
-            var brushType = area.brushType;
+        var area = areas[0]; // dataZoom can not multiple area.
+        var coordInfo = rangesCoordInfoList[0];
+        var coordRange = area.coordRange;
+        var brushType = area.brushType;
+
+        if (coordInfo && coordRange) {
             if (brushType === 'rect') {
-                setBatch('x', coordSys, coordRange[0]);
-                setBatch('y', coordSys, coordRange[1]);
+                setBatch('xAxis', coordRange[0], coordInfo);
+                setBatch('yAxis', coordRange[1], coordInfo);
             }
             else {
-                setBatch(({lineX: 'x', lineY: 'y'})[brushType], coordSys, coordRange);
+                var axisNames = {lineX: 'xAxis', lineY: 'yAxis'};
+                setBatch(axisNames[brushType], coordRange, coordInfo);
             }
-        });
+        }
 
         history.push(ecModel, snapshot);
 
         this._dispatchZoomAction(snapshot);
 
-        function setBatch(dimName, coordSys, minMax) {
-            var axis = coordSys.getAxis(dimName);
-            var axisModel = axis.model;
-            var dataZoomModel = findDataZoom(dimName, axisModel, ecModel);
-
+        function setBatch(axisName, minMax, coordInfo) {
+            var dataZoomModel = findDataZoom(axisName, coordInfo[axisName], ecModel);
             if (dataZoomModel) {
+            	                
                 // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - Start
                 var percentRange 	= dataZoomModel.getPercentRange();
                 var valueRange 		= dataZoomModel.getValueRange();
-
+                
                 var rangePercentStart 	= ( percentRange[1] * minMax[0] ) / valueRange[1];
                 var rangePercentEnd 	= ( percentRange[1] * minMax[1] ) / valueRange[1];
                 // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - End
-
-                // Restrict range.
-                var minMaxSpan = dataZoomModel.findRepresentativeAxisProxy(axisModel).getMinMaxSpan();
-                if (minMaxSpan.minValueSpan != null || minMaxSpan.maxValueSpan != null) {
-                    minMax = sliderMove(
-                        0, minMax.slice(), axis.scale.getExtent(), 0,
-                        minMaxSpan.minValueSpan, minMaxSpan.maxValueSpan
-                    );
-                }
-
-                dataZoomModel && (snapshot[dataZoomModel.id] = {
+            	
+                snapshot[dataZoomModel.id] = {
                     dataZoomId: dataZoomModel.id,
                     startValue: minMax[0],
                     endValue: minMax[1],
                     range: {
-                        start: rangePercentStart,	// add by eltriny - #20161018-03
-                        end: rangePercentEnd,		// add by eltriny - #20161018-03
-                        startValue: minMax[0],		// add by eltriny - #20161018-03
-                        endValue: minMax[1]			// add by eltriny - #20161018-03
+                    	start: rangePercentStart,	// add by eltriny - #20161018-03
+                    	end: rangePercentEnd,		// add by eltriny - #20161018-03
+                    	startValue: minMax[0],		// add by eltriny - #20161018-03
+                    	endValue: minMax[1]			// add by eltriny - #20161018-03
                     }
-                });
+                };
             }
-
         }
 
-        function findDataZoom(dimName, axisModel, ecModel) {
-            var found;
-            ecModel.eachComponent({mainType: 'dataZoom', subType: 'select'}, function (dzModel) {
-                var has = dzModel.getAxisModel(dimName, axisModel.componentIndex);
-                has && (found = dzModel);
-            });
-            return found;
+        function findDataZoom(axisName, axisModel, ecModel) {
+            var dataZoomModel;
+            ecModel.eachComponent(
+                {mainType: 'dataZoom', subType: 'select'},
+                function (dzModel, dataZoomIndex) {
+                    var axisIndex = dzModel.get(axisName + 'Index');
+                    if (axisIndex != null
+                        && ecModel.getComponent(axisName, axisIndex) === axisModel
+                    ) {
+                        dataZoomModel = dzModel;
+                    }
+                }
+            );
+            return dataZoomModel;
         }
     };
 
@@ -250,7 +249,7 @@ define(function(require) {
         each(snapshot, function (batchItem, dataZoomId) {
             batch.push(zrUtil.clone(batchItem));
         });
-
+                
         batch.length && this.api.dispatchAction({
             type: 'dataZoom',
             from: this.uid,
@@ -276,7 +275,7 @@ define(function(require) {
         );
     }
 
-    function updateZoomBtnStatus(featureModel, ecModel, view, payload, api) {
+    function updateZoomBtnStatus(featureModel, ecModel, view, payload) {
         var zoomActive = view._isZoomActive;
 
         if (payload && payload.type === 'takeGlobalCursor') {
@@ -288,25 +287,24 @@ define(function(require) {
 
         featureModel.setIconStatus('zoom', zoomActive ? 'emphasis' : 'normal');
 
-        var brushTargetManager = new BrushTargetManager(
-            retrieveAxisSetting(featureModel.option), ecModel, {include: ['grid']}
+        var coordInfoList = brushHelper.makeCoordInfoList(
+            retrieveAxisSetting(featureModel.option), ecModel
         );
+        var brushType = (coordInfoList.xAxisHas && !coordInfoList.yAxisHas)
+            ? 'lineX'
+            : (!coordInfoList.xAxisHas && coordInfoList.yAxisHas)
+            ? 'lineY'
+            : 'rect';
 
         view._brushController
-            .setPanels(brushTargetManager.makePanelOpts(api, function (targetInfo) {
-                return (targetInfo.xAxisDeclared && !targetInfo.yAxisDeclared)
-                    ? 'lineX'
-                    : (!targetInfo.xAxisDeclared && targetInfo.yAxisDeclared)
-                    ? 'lineY'
-                    : 'rect';
-            }))
+            .setPanels(brushHelper.makePanelOpts(coordInfoList))
             .enableBrush(
                 zoomActive
                 ? {
-                    brushType: 'auto',
-                    brushStyle: {
-                        // FIXME user customized?
+                    brushType: brushType,
+                    brushStyle: { // FIXME user customized?
                         lineWidth: 0,
+                        // stroke: '#333',
                         fill: 'rgba(0,0,0,0.2)'
                     }
                 }
@@ -316,7 +314,6 @@ define(function(require) {
 
 
     require('../featureManager').register('dataZoom', DataZoom);
-
 
     // Create special dataZoom option for select
     require('../../../echarts').registerPreprocessor(function (option) {

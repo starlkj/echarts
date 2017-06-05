@@ -5,20 +5,9 @@
 
 define(function (require) {
 
-    // [About UTC and local time zone]:
-    // In most cases, `number.parseDate` will treat input data string as local time
-    // (except time zone is specified in time string). And `format.formateTime` returns
-    // local time by default. option.useUTC is false by default. This design have
-    // concidered these common case:
-    // (1) Time that is persistent in server is in UTC, but it is needed to be diplayed
-    // in local time by default.
-    // (2) By default, the input data string (e.g., '2011-01-02') should be displayed
-    // as its original time, without any time difference.
-
     var zrUtil = require('zrender/core/util');
     var numberUtil = require('../util/number');
     var formatUtil = require('../util/format');
-    var scaleHelper = require('./helper');
 
     var IntervalScale = require('./Interval');
 
@@ -52,21 +41,17 @@ define(function (require) {
     var TimeScale = IntervalScale.extend({
         type: 'time',
 
-        /**
-         * @override
-         */
+        // Overwrite
         getLabel: function (val) {
             var stepLvl = this._stepLvl;
 
             var date = new Date(val);
 
-            return formatUtil.formatTime(stepLvl[0], date, this.getSetting('useUTC'));
+            return formatUtil.formatTime(stepLvl[0], date);
         },
 
-        /**
-         * @override
-         */
-        niceExtent: function (opt) {
+        // Overwrite
+        niceExtent: function (approxTickNum, fixMin, fixMax) {
             var extent = this._extent;
             // If extent start and end are same, expand them
             if (extent[0] === extent[1]) {
@@ -81,25 +66,21 @@ define(function (require) {
                 extent[0] = extent[1] - ONE_DAY;
             }
 
-            this.niceTicks(opt.splitNumber);
+            this.niceTicks(approxTickNum);
 
             // var extent = this._extent;
             var interval = this._interval;
 
-            if (!opt.fixMin) {
+            if (!fixMin) {
                 extent[0] = numberUtil.round(mathFloor(extent[0] / interval) * interval);
             }
-            if (!opt.fixMax) {
+            if (!fixMax) {
                 extent[1] = numberUtil.round(mathCeil(extent[1] / interval) * interval);
             }
         },
 
-        /**
-         * @override
-         */
+        // Overwrite
         niceTicks: function (approxTickNum) {
-            var timezoneOffset = this.getSetting('useUTC')
-                ? 0 : numberUtil.getTimezoneOffset() * 60 * 1000;
             approxTickNum = approxTickNum || 10;
 
             var extent = this._extent;
@@ -122,11 +103,9 @@ define(function (require) {
             }
 
             var niceExtent = [
-                Math.round(mathCeil((extent[0] - timezoneOffset) / interval) * interval + timezoneOffset),
-                Math.round(mathFloor((extent[1] - timezoneOffset)/ interval) * interval + timezoneOffset)
+                mathCeil(extent[0] / interval) * interval,
+                mathFloor(extent[1] / interval) * interval
             ];
-
-            scaleHelper.fixExtent(niceExtent, extent);
 
             this._stepLvl = level;
             // Interval will be used in getTicks
@@ -172,11 +151,10 @@ define(function (require) {
     ];
 
     /**
-     * @param {module:echarts/model/Model}
      * @return {module:echarts/scale/Time}
      */
-    TimeScale.create = function (model) {
-        return new TimeScale({useUTC: model.ecModel.get('useUTC')});
+    TimeScale.create = function () {
+        return new TimeScale();
     };
 
     return TimeScale;

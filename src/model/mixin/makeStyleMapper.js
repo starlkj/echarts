@@ -10,13 +10,11 @@ define(function (require) {
                properties[i][1] = properties[i][0];
             }
         }
-        return function (excludes, includes) {
+        return function (excludes) {
             var style = {};
             for (var i = 0; i < properties.length; i++) {
                 var propName = properties[i][1];
-                if ((excludes && zrUtil.indexOf(excludes, propName) >= 0)
-                    || (includes && zrUtil.indexOf(includes, propName) < 0)
-                ) {
+                if (excludes && zrUtil.indexOf(excludes, propName) >= 0) {
                     continue;
                 }
                 var val = this.getShallow(propName);

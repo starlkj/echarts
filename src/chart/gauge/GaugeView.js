@@ -25,7 +25,7 @@ define(function (require) {
     function formatLabel(label, labelFormatter) {
         if (labelFormatter) {
             if (typeof labelFormatter === 'string') {
-                label = labelFormatter.replace('{value}', label != null ? label : '');
+                label = labelFormatter.replace('{value}', label);
             }
             else if (typeof labelFormatter === 'function') {
                 label = labelFormatter(label);
@@ -52,8 +52,6 @@ define(function (require) {
                 seriesModel, ecModel, api, colorList, posInfo
             );
         },
-
-        dispose: function () {},
 
         _renderMain: function (seriesModel, ecModel, api, colorList, posInfo) {
             var group = this.group;
@@ -151,8 +149,8 @@ define(function (require) {
             var cy = posInfo.cy;
             var r = posInfo.r;
 
-            var minVal = +seriesModel.get('min');
-            var maxVal = +seriesModel.get('max');
+            var minVal = seriesModel.get('min');
+            var maxVal = seriesModel.get('max');
 
             var splitLineModel = seriesModel.getModel('splitLine');
             var tickModel = seriesModel.getModel('axisTick');
@@ -266,22 +264,17 @@ define(function (require) {
             seriesModel, ecModel, api, getColor, posInfo,
             startAngle, endAngle, clockwise
         ) {
-
-            var group = this.group;
-            var oldData = this._data;
-
-            if (!seriesModel.get('pointer.show')) {
-                // Remove old element
-                oldData && oldData.eachItemGraphicEl(function (el) {
-                    group.remove(el);
-                });
-                return;
-            }
-
             var valueExtent = [+seriesModel.get('min'), +seriesModel.get('max')];
             var angleExtent = [startAngle, endAngle];
 
+            if (!clockwise) {
+                angleExtent = angleExtent.reverse();
+            }
+
             var data = seriesModel.getData();
+            var oldData = this._data;
+
+            var group = this.group;
 
             data.diff(oldData)
                 .add(function (idx) {
@@ -291,7 +284,7 @@ define(function (require) {
                         }
                     });
 
-                    graphic.initProps(pointer, {
+                    graphic.updateProps(pointer, {
                         shape: {
                             angle: numberUtil.linearMap(data.get('value', idx), valueExtent, angleExtent, true)
                         }
@@ -335,7 +328,7 @@ define(function (require) {
 
                 if (pointer.style.fill === 'auto') {
                     pointer.setStyle('fill', getColor(
-                        numberUtil.linearMap(data.get('value', idx), valueExtent, [0, 1], true)
+                        (data.get('value', idx) - valueExtent[0]) / (valueExtent[1] - valueExtent[0])
                     ));
                 }
 
@@ -356,7 +349,6 @@ define(function (require) {
                 var offsetCenter = titleModel.get('offsetCenter');
                 var x = posInfo.cx + parsePercent(offsetCenter[0], posInfo.r);
                 var y = posInfo.cy + parsePercent(offsetCenter[1], posInfo.r);
-
                 var text = new graphic.Text({
                     style: {
                         x: x,
@@ -369,16 +361,6 @@ define(function (require) {
                         textVerticalAlign: 'middle'
                     }
                 });
-
-                if (text.style.fill === 'auto') {
-                    var minVal = +seriesModel.get('min');
-                    var maxVal = +seriesModel.get('max');
-                    var value = seriesModel.getData().get('value', 0);
-                    text.setStyle('fill', getColor(
-                        numberUtil.linearMap(value, [minVal, maxVal], [0, 1], true)
-                    ));
-                }
-
                 this.group.add(text);
             }
         },
@@ -387,8 +369,8 @@ define(function (require) {
             seriesModel, ecModel, api, getColor, posInfo
         ) {
             var detailModel = seriesModel.getModel('detail');
-            var minVal = +seriesModel.get('min');
-            var maxVal = +seriesModel.get('max');
+            var minVal = seriesModel.get('min');
+            var maxVal = seriesModel.get('max');
             if (detailModel.get('show')) {
                 var textStyleModel = detailModel.getModel('textStyle');
                 var offsetCenter = detailModel.get('offsetCenter');

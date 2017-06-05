@@ -38,24 +38,14 @@ define(function(require) {
         var coordSysName = seriesModel.get('coordinateSystem');
         var creator = creators[coordSysName];
         var registeredCoordSys = CoordinateSystem.get(coordSysName);
-        var completeDimOpt = {
-            encodeDef: seriesModel.get('encode'),
-            dimsDef: seriesModel.get('dimensions')
-        };
-
         // FIXME
-        var axesInfo = creator && creator(data, seriesModel, ecModel, completeDimOpt);
+        var axesInfo = creator && creator(data, seriesModel, ecModel);
         var dimensions = axesInfo && axesInfo.dimensions;
         if (!dimensions) {
             // Get dimensions from registered coordinate system
-            dimensions = (registeredCoordSys && (
-                registeredCoordSys.getDimensionsInfo
-                    ? registeredCoordSys.getDimensionsInfo()
-                    : registeredCoordSys.dimensions.slice()
-            )) || ['x', 'y'];
-            dimensions = completeDimensions(dimensions, data, completeDimOpt);
+            dimensions = (registeredCoordSys && registeredCoordSys.dimensions) || ['x', 'y'];
+            dimensions = completeDimensions(dimensions, data, dimensions.concat(['value']));
         }
-
         var categoryIndex = axesInfo ? axesInfo.categoryIndex : -1;
 
         var list = new List(dimensions, seriesModel);
@@ -123,7 +113,7 @@ define(function(require) {
      */
     var creators = {
 
-        cartesian2d: function (data, seriesModel, ecModel, completeDimOpt) {
+        cartesian2d: function (data, seriesModel, ecModel) {
 
             var axesModels = zrUtil.map(['xAxis', 'yAxis'], function (name) {
                 return ecModel.queryComponents({
@@ -172,7 +162,7 @@ define(function(require) {
             var isXAxisCateogry = xAxisType === 'category';
             var isYAxisCategory = yAxisType === 'category';
 
-            dimensions = completeDimensions(dimensions, data, completeDimOpt);
+            completeDimensions(dimensions, data, ['x', 'y', 'z']);
 
             var categoryAxesModels = {};
             if (isXAxisCateogry) {
@@ -188,44 +178,7 @@ define(function(require) {
             };
         },
 
-        singleAxis: function (data, seriesModel, ecModel, completeDimOpt) {
-
-            var singleAxisModel = ecModel.queryComponents({
-                mainType: 'singleAxis',
-                index: seriesModel.get('singleAxisIndex'),
-                id: seriesModel.get('singleAxisId')
-            })[0];
-
-            if (__DEV__) {
-                if (!singleAxisModel) {
-                    throw new Error('singleAxis should be specified.');
-                }
-            }
-
-            var singleAxisType = singleAxisModel.get('type');
-            var isCategory = singleAxisType === 'category';
-
-            var dimensions = [{
-                name: 'single',
-                type: getDimTypeByAxis(singleAxisType),
-                stackable: isStackable(singleAxisType)
-            }];
-
-            dimensions = completeDimensions(dimensions, data, completeDimOpt);
-
-            var categoryAxesModels = {};
-            if (isCategory) {
-                categoryAxesModels.single = singleAxisModel;
-            }
-
-            return {
-                dimensions: dimensions,
-                categoryIndex: isCategory ? 0 : -1,
-                categoryAxesModels: categoryAxesModels
-            };
-        },
-
-        polar: function (data, seriesModel, ecModel, completeDimOpt) {
+        polar: function (data, seriesModel, ecModel) {
             var polarModel = ecModel.queryComponents({
                 mainType: 'polar',
                 index: seriesModel.get('polarIndex'),
@@ -262,7 +215,7 @@ define(function(require) {
             var isAngleAxisCateogry = angleAxisType === 'category';
             var isRadiusAxisCateogry = radiusAxisType === 'category';
 
-            dimensions = completeDimensions(dimensions, data, completeDimOpt);
+            completeDimensions(dimensions, data, ['radius', 'angle', 'value']);
 
             var categoryAxesModels = {};
             if (isRadiusAxisCateogry) {
@@ -278,14 +231,14 @@ define(function(require) {
             };
         },
 
-        geo: function (data, seriesModel, ecModel, completeDimOpt) {
+        geo: function (data, seriesModel, ecModel) {
             // TODO Region
             // 多个散点图系列在同一个地区的时候
             return {
                 dimensions: completeDimensions([
                     {name: 'lng'},
                     {name: 'lat'}
-                ], data, completeDimOpt)
+                ], data, ['lng', 'lat', 'value'])
             };
         }
     };

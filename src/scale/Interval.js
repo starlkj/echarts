@@ -8,10 +8,12 @@ define(function (require) {
     var numberUtil = require('../util/number');
     var formatUtil = require('../util/format');
     var Scale = require('./Scale');
-    var helper = require('./helper');
 
-    var roundNumber = numberUtil.round;
+    var mathFloor = Math.floor;
+    var mathCeil = Math.ceil;
 
+    var getPrecisionSafe = numberUtil.getPrecisionSafe;
+    var roundingErrorFix = numberUtil.round;
     /**
      * @alias module:echarts/coord/scale/Interval
      * @constructor
@@ -21,8 +23,6 @@ define(function (require) {
         type: 'interval',
 
         _interval: 0,
-
-        _intervalPrecision: 2,
 
         setExtent: function (start, end) {
             var thisExtent = this._extent;
@@ -47,6 +47,9 @@ define(function (require) {
          * Get interval
          */
         getInterval: function () {
+            if (!this._interval) {
+                this.niceTicks();
+            }
             return this._interval;
         },
 
@@ -64,9 +67,38 @@ define(function (require) {
          * @return {Array.<number>}
          */
         getTicks: function () {
-            return helper.intervalScaleGetTicks(
-                this._interval, this._extent, this._niceExtent, this._intervalPrecision
-            );
+            if (!this._interval) {
+                this.niceTicks();
+            }
+            var interval = this._interval;
+            var extent = this._extent;
+            var ticks = [];
+
+            // Consider this case: using dataZoom toolbox, zoom and zoom.
+            var safeLimit = 10000;
+
+            if (interval) {
+                var niceExtent = this._niceExtent;
+                var precision = getPrecisionSafe(interval) + 2;
+
+                if (extent[0] < niceExtent[0]) {
+                    ticks.push(extent[0]);
+                }
+                var tick = niceExtent[0];
+                while (tick <= niceExtent[1]) {
+                    ticks.push(tick);
+                    // Avoid rounding error
+                    tick = roundingErrorFix(tick + interval, precision);
+                    if (ticks.length > safeLimit) {
+                        return [];
+                    }
+                }
+                if (extent[1] > niceExtent[1]) {
+                    ticks.push(extent[1]);
+                }
+            }
+
+            return ticks;
         },
 
         /**
@@ -82,31 +114,10 @@ define(function (require) {
         },
 
         /**
-         * @param {number} data
-         * @param {Object} [opt]
-         * @param {number|string} [opt.precision] If 'auto', use nice presision.
-         * @param {boolean} [opt.pad] returns 1.50 but not 1.5 if precision is 2.
-         * @return {string}
+         * @param {number} n
+         * @return {number}
          */
-        getLabel: function (data, opt) {
-            if (data == null) {
-                return '';
-            }
-
-            var precision = opt && opt.precision;
-
-            if (precision == null) {
-                precision = numberUtil.getPrecisionSafe(data) || 0;
-            }
-            else if (precision === 'auto') {
-                // Should be more precise then tick.
-                precision = this._intervalPrecision;
-            }
-
-            // (1) If `precision` is set, 12.005 should be display as '12.00500'.
-            // (2) Use roundNumber (toFixed) to avoid scientific notation like '3.5e-7'.
-            data = roundNumber(data, precision, true);
-
+        getLabel: function (data) {
             return formatUtil.addCommas(data);
         },
 
@@ -114,9 +125,8 @@ define(function (require) {
          * Update interval and extent of intervals for nice ticks
          *
          * @param {number} [splitNumber = 5] Desired number of ticks
-         * @param {number} [minInterval]
          */
-        niceTicks: function (splitNumber, minInterval) {
+        niceTicks: function (splitNumber) {
             splitNumber = splitNumber || 5;
             var extent = this._extent;
             var span = extent[1] - extent[0];
@@ -130,22 +140,36 @@ define(function (require) {
                 extent.reverse();
             }
 
-            var result = helper.intervalScaleNiceTicks(extent, splitNumber, minInterval);
+            // From "Nice Numbers for Graph Labels" of Graphic Gems
+            // var niceSpan = numberUtil.nice(span, false);
+            var step = roundingErrorFix(
+                numberUtil.nice(span / splitNumber, true),
+                Math.max(
+                    getPrecisionSafe(extent[0]),
+                    getPrecisionSafe(extent[1])
+                // extent may be [0, 1], and step should have 1 more digits.
+                // To make it safe we add 2 more digits
+                ) + 2
+            );
 
-            this._intervalPrecision = result.intervalPrecision;
-            this._interval = result.interval;
-            this._niceExtent = result.niceTickExtent;
+            var precision = getPrecisionSafe(step) + 2;
+            // Niced extent inside original extent
+            var niceExtent = [
+                roundingErrorFix(mathCeil(extent[0] / step) * step, precision),
+                roundingErrorFix(mathFloor(extent[1] / step) * step, precision)
+            ];
+
+            this._interval = step;
+            this._niceExtent = niceExtent;
         },
 
         /**
          * Nice extent.
-         * @param {Object} opt
-         * @param {number} [opt.splitNumber = 5] Given approx tick number
-         * @param {boolean} [opt.fixMin=false]
-         * @param {boolean} [opt.fixMax=false]
-         * @param {boolean} [opt.minInterval=false]
+         * @param {number} [splitNumber = 5] Given approx tick number
+         * @param {boolean} [fixMin=false]
+         * @param {boolean} [fixMax=false]
          */
-        niceExtent: function (opt) {
+        niceExtent: function (splitNumber, fixMin, fixMax) {
             var extent = this._extent;
             // If extent start and end are same, expand them
             if (extent[0] === extent[1]) {
@@ -157,7 +181,7 @@ define(function (require) {
                     //      Plus data are all 100 and axis extent are [100, 100].
                     // Extend to the both side will cause expanded max is larger than fixed max.
                     // So only expand to the smaller side.
-                    if (!opt.fixMax) {
+                    if (!fixMax) {
                         extent[1] += expandSize / 2;
                         extent[0] -= expandSize / 2;
                     }
@@ -176,16 +200,16 @@ define(function (require) {
                 extent[1] = 1;
             }
 
-            this.niceTicks(opt.splitNumber, opt.minInterval);
+            this.niceTicks(splitNumber);
 
             // var extent = this._extent;
             var interval = this._interval;
 
-            if (!opt.fixMin) {
-                extent[0] = roundNumber(Math.floor(extent[0] / interval) * interval);
+            if (!fixMin) {
+                extent[0] = roundingErrorFix(mathFloor(extent[0] / interval) * interval);
             }
-            if (!opt.fixMax) {
-                extent[1] = roundNumber(Math.ceil(extent[1] / interval) * interval);
+            if (!fixMax) {
+                extent[1] = roundingErrorFix(mathCeil(extent[1] / interval) * interval);
             }
         }
     });

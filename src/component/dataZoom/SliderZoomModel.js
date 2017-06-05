@@ -5,6 +5,14 @@ define(function(require) {
 
     var DataZoomModel = require('./DataZoomModel');
 
+    /**
+     * SliderZoomModel 색상 변경
+     * edit by starlkj - #20161121-1
+     *  backgroundColor
+     *  dataBackground
+     *  fillerColor
+     *  textStyle
+     */
     var SliderZoomModel = DataZoomModel.extend({
 
         type: 'dataZoom.slider',
@@ -26,14 +34,11 @@ define(function(require) {
             left: null,   // Default align to grid rect.
             bottom: null, // Default align to grid rect.
 
-            // add by starlkj
             //backgroundColor: 'rgba(41,123,184,0.2)',    // Background of slider zoom component. - 원본
             backgroundColor: '#f9f9f9',    // Background of slider zoom component.
             // dataBackgroundColor: '#ddd',         // Background coor of data shadow and border of box,
                                                     // highest priority, remain for compatibility of
-                                                    // previous version, but not recommended any more.4
-
-            // add by starlkj
+                                                    // previous version, but not recommended any more.
             dataBackground: {
                 lineStyle: {
                     //color: '#2f4554', 원본
@@ -44,15 +49,14 @@ define(function(require) {
                 },
                 areaStyle: {
                     //color: 'rgba(47,69,84,0.3)', 원본
-                    color: '#ebeff1',
+                	color: '#ebeff1',
                     opacity: 1
                 }
             },
-            borderColor: '##eee',                    // border color of the box. For compatibility,
+            borderColor: '#eee',                    // border color of the box. For compatibility,
                                                     // if dataBackgroundColor is set, borderColor
                                                     // is ignored.
 
-            // add by starlkj
             //fillerColor: 'rgba(167,183,204,0.4)',   원본  // Color of selected area.
             fillerColor: 'rgba(41,123,184,0.2)',
             // handleColor: 'rgba(89,170,216,0.95)',   원본 // Color of handle.
@@ -62,7 +66,7 @@ define(function(require) {
             handleSize: '100%',
 
             handleStyle: {
-                color: '#a7b7cc'
+                color: '#297bb8'
             },
 
             labelPrecision: null,
@@ -72,8 +76,7 @@ define(function(require) {
             realtime: true,
             zoomLock: false,                        // Whether disable zoom.
             textStyle: {
-                // add by starlkj
-                color: '#333'
+                color: '#444'
             }
         }
 

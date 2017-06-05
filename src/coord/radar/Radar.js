@@ -131,7 +131,7 @@ define(function (require) {
             }
             var data = radarSeries.getData();
             zrUtil.each(indicatorAxes, function (indicatorAxis) {
-                indicatorAxis.scale.unionExtentFromData(data, indicatorAxis.dim);
+                indicatorAxis.scale.unionExtent(data.getDataExtent(indicatorAxis.dim));
             });
         }, this);
 
@@ -151,13 +151,13 @@ define(function (require) {
         }
         // Force all the axis fixing the maxSplitNumber.
         zrUtil.each(indicatorAxes, function (indicatorAxis, idx) {
-            var rawExtent = axisHelper.getScaleExtent(indicatorAxis.scale, indicatorAxis.model);
-            axisHelper.niceScaleExtent(indicatorAxis.scale, indicatorAxis.model);
+            var rawExtent = axisHelper.getScaleExtent(indicatorAxis, indicatorAxis.model);
+            axisHelper.niceScaleExtent(indicatorAxis, indicatorAxis.model);
 
             var axisModel = indicatorAxis.model;
             var scale = indicatorAxis.scale;
-            var fixedMin = axisModel.getMin();
-            var fixedMax = axisModel.getMax();
+            var fixedMin = axisModel.get('min');
+            var fixedMax = axisModel.get('max');
             var interval = scale.getInterval();
 
             if (fixedMin != null && fixedMax != null) {

@@ -4,7 +4,6 @@
         <script src='esl.js'></script>
         <script src='config.js'></script>
         <script src='lib/jquery.min.js'></script>
-        <script src='lib/facePrint.js'></script>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
     </head>
     <body>
@@ -19,18 +18,8 @@
                 left: 10;
                 top: 10;
             }
-            #info {
-                position: fixed;
-                left: 0;
-                bottom: 0;
-                height: 30px;
-                line-height: 30px;
-                color: yellow;
-                font-size: 20px;
-            }
         </style>
-        <div id="main"></div>
-        <div id="info"></div>
+        <div id='main'></div>
         <button id="pause-resume">Pause/Resume</button>
         <script>
 
@@ -330,7 +319,6 @@
                                     show: false
                                 }
                             },
-                            selectedMode: 'single',
                             roam: true,
                             itemStyle: {
                                 normal: {
@@ -343,14 +331,6 @@
                             }
                         },
                         series: series
-                    });
-
-                    myChart.on('geoselectchanged', function (param) {
-                        var selected = [];
-                        echarts.util.each(param.selected, function (v, key) {
-                            v && selected.push(key);
-                        });
-                        document.getElementById('info').innerHTML = 'SELECTED: ' + selected.join(', ');
                     });
 
                     var isPaused = false;

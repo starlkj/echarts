@@ -11,7 +11,6 @@ define(function (require) {
     var echarts = require('../echarts');
 
     echarts.registerLayout(zrUtil.curry(barLayoutGrid, 'bar'));
-
     // Visual coding for legend
     echarts.registerVisual(function (ecModel) {
         ecModel.eachSeriesByType('bar', function (seriesModel) {
@@ -21,5 +20,5 @@ define(function (require) {
     });
 
     // In case developer forget to include grid component
-    require('../component/gridSimple');
+    require('../component/grid');
 });

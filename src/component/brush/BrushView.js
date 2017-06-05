@@ -34,13 +34,13 @@ define(function (require) {
              * @type {module:echarts/component/helper/BrushController}
              */
             (this._brushController = new BrushController(api.getZr(), 'SELECT_BRUSH' ))
-                .on('brush', zrUtil.bind(this._onBrush, this))
+                .on('brush', zrUtil.bind(this._onBrush, this))                
                 .mount();
-
+                        
             // add by eltriny
             // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
             this._brushSelectData = null;
-
+            
             // add by eltriny
             // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
             this.api.on( 'brushSelected', zrUtil.bind( this._onBrushSelected, this ) );
@@ -75,13 +75,13 @@ define(function (require) {
         dispose: function () {
             this._brushController.dispose();
         },
-
+        
         /**
          * @private
          * add by eltriny
          */
-        _onBrushSelected: function ( selectedData ) {
-            this._brushSelectData = selectedData.batch;
+        _onBrushSelected: function ( selectedData ) {        	
+        	this._brushSelectData = selectedData.batch;         	
         },
 
         /**
@@ -89,36 +89,36 @@ define(function (require) {
          */
         _onBrush: function (areas, opt) {
             var modelId = this.model.id;
-
+            
             // add by eltriny
             if( opt.isClick ) {
-                return;
+            	return;
             }
-
+            
             // add by eltriny
             // Brush Drag End 시 이벤트 발생
-            if( opt.isDragEnd ) {
-                this.api.dispatchAction(
-                    {
-                        type			: 'brushDragEnd',
-                        brushId			: modelId,
+            if( opt.isDragEnd ) {            	
+            	this.api.dispatchAction( 
+            		{ 
+            			type			: 'brushDragEnd',
+            			brushId			: modelId,
                         areas			: zrUtil.clone(areas),
                         $from			: modelId,
                         brushSelectData : zrUtil.clone( this._brushSelectData )
-                    }
-                );
-
-                this._brushSelectData = null;
+            		} 
+            	);
+            	
+            	this._brushSelectData = null;
             }
-
+            
             if( opt.isEnd && opt.removeOnClick ) {
-                this.api.dispatchAction( { type: 'enableTip' } );
+            	this.api.dispatchAction( { type: 'enableTip' } );
             }
             else {
-                this.api.dispatchAction( { type: 'disableTip' } );
+            	this.api.dispatchAction( { type: 'disableTip' } );            	
             }
 
-            this.model.brushTargetManager.setOutputRanges(areas, this.ecModel);
+            brushHelper.parseOutputRanges(areas, this.model.coordInfoList, this.ecModel);
 
             // Action is not dispatched on drag end, because the drag end
             // emits the same params with the last drag move event, and
@@ -137,7 +137,7 @@ define(function (require) {
     function updateController(brushModel, ecModel, api, payload) {
         // Do not update controller when drawing.
         (!payload || payload.$from !== brushModel.id) && this._brushController
-            .setPanels(brushModel.brushTargetManager.makePanelOpts(api))
+            .setPanels(brushHelper.makePanelOpts(brushModel.coordInfoList))
             .enableBrush(brushModel.brushOption)
             .updateCovers(brushModel.areas.slice());
     }

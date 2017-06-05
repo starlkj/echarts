@@ -20,5 +20,5 @@ define(function (require) {
     ));
 
     // In case developer forget to include grid component
-    require('../component/gridSimple');
+    require('../component/grid');
 });

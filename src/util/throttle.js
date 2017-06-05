@@ -24,7 +24,6 @@ define(function () {
         var diff;
         var scope;
         var args;
-        var debounceNextCall;
 
         delay = delay || 0;
 
@@ -38,15 +37,12 @@ define(function () {
             currCall = (new Date()).getTime();
             scope = this;
             args = arguments;
-            var thisDelay = debounceNextCall || delay;
-            var thisDebounce = debounceNextCall || debounce;
-            debounceNextCall = null;
-            diff = currCall - (thisDebounce ? lastCall : lastExec) - thisDelay;
+            diff = currCall - (debounce ? lastCall : lastExec) - delay;
 
             clearTimeout(timer);
 
-            if (thisDebounce) {
-                timer = setTimeout(exec, thisDelay);
+            if (debounce) {
+                timer = setTimeout(exec, delay);
             }
             else {
                 if (diff >= 0) {
@@ -69,13 +65,6 @@ define(function () {
                 clearTimeout(timer);
                 timer = null;
             }
-        };
-
-        /**
-         * Enable debounce once.
-         */
-        cb.debounceNextCall = function (debounceDelay) {
-            debounceNextCall = debounceDelay;
         };
 
         return cb;

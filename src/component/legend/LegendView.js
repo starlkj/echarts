@@ -40,10 +40,10 @@ define(function (require) {
 
     // Group 설정 -- this 설정 필요
     function setGroup() {
-        var pageItems = this.pageList[ this.page - 1 ];
-        for( var idx = 0, nMax = pageItems.length; idx < nMax; idx++ ) {
-            this.group.add( pageItems[ idx ] );
-        }
+    	var pageItems = this.pageList[ this.page - 1 ];
+    	for( var idx = 0, nMax = pageItems.length; idx < nMax; idx++ ) {
+    		this.group.add( pageItems[ idx ] );
+    	}
     }	// Method - setGroup
 
     return require('../../echarts').extendComponentView({
@@ -81,8 +81,8 @@ define(function (require) {
             this.currentLegnedWidth = 0;
             this.page		        = legendModel.get( 'page' );
             if( 0 != this.pageItems ) {
-                this.usePage	    = true;
-                this.pageList 	    = [];
+            	this.usePage	    = true;
+            	this.pageList 	    = [];
             }
             // - add by eltriny
 
@@ -95,7 +95,7 @@ define(function (require) {
                     ? 'right' : 'left';
             }
 
-            var legendDrawedMap = zrUtil.createHashMap();
+            var legendDrawedMap = {};
 
             zrUtil.each(legendModel.getData(), function (itemModel) {
                 var name = itemModel.get('name');
@@ -110,7 +110,7 @@ define(function (require) {
 
                 var seriesModel = ecModel.getSeriesByName(name)[0];
 
-                if (legendDrawedMap.get(name)) {
+                if (legendDrawedMap[name]) {
                     // Have been drawed
                     return;
                 }
@@ -139,10 +139,10 @@ define(function (require) {
                     );
 
                     itemGroup.on('click', curry(dispatchSelectAction, name, api))
-                        .on('mouseover', curry(dispatchHighlightAction, seriesModel, null, api))
-                        .on('mouseout', curry(dispatchDownplayAction, seriesModel, null, api));
+                        .on('mouseover', curry(dispatchHighlightAction, seriesModel, '', api))
+                        .on('mouseout', curry(dispatchDownplayAction, seriesModel, '', api));
 
-                    legendDrawedMap.set(name, true);
+                    legendDrawedMap[name] = true;
                 }
                 else {
                     // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- Start
@@ -169,7 +169,7 @@ define(function (require) {
                         // Data legend of pie, funnel
                         ecModel.eachRawSeries(function (seriesModel) {
                             // In case multiple series has same data name
-                            if (legendDrawedMap.get(name)) {
+                            if (legendDrawedMap[name]) {
                                 return;
                             }
                             if (seriesModel.legendDataProvider) {
@@ -195,14 +195,14 @@ define(function (require) {
                                     .on('mouseover', curry(dispatchHighlightAction, seriesModel, name, api))
                                     .on('mouseout', curry(dispatchDownplayAction, seriesModel, name, api));
 
-                                legendDrawedMap.set(name, true);
+                                legendDrawedMap[name] = true;
                             }
                         }, this);
                     }
                 }
 
                 if (__DEV__) {
-                    if (!legendDrawedMap.get(name)) {
+                    if (!legendDrawedMap[name]) {
                         console.warn(name + ' series not exists. Legend data should be same with series name or data name.');
                     }
                 }
@@ -211,37 +211,37 @@ define(function (require) {
             // - add by eltriny
             if( this.usePage ) {
 
-                var _this = this;
-                var nTotalPage = this.pageList.length;
+            	var _this = this;
+            	var nTotalPage = this.pageList.length;
                 // -- add by dolkkok
                 // #201710413-01 : resize시마다 변경될 수 있는 전체페이지/현재 페이지 체크
                 if(!this.pageList[ this.page - 1 ]) this.page = nTotalPage;
 
-                // 숫자 자릿수 계산
-                var tempCurrPage 	= this.page;
-                var nCurrPageWidth 	= 7;
-                while( 9 < tempCurrPage ) {
-                    nCurrPageWidth += 7;
-                    tempCurrPage = tempCurrPage / 10;
-                }
+            	// 숫자 자릿수 계산
+            	var tempCurrPage 	= this.page;
+            	var nCurrPageWidth 	= 7;
+            	while( 9 < tempCurrPage ) {
+            		nCurrPageWidth += 7;
+            		tempCurrPage = tempCurrPage / 10;
+            	}
 
-                var tempTotalPage	= nTotalPage;
-                var nTotalPageWidth	= 7;
-                while( 9 < tempTotalPage ) {
-                    nTotalPageWidth += 7;
-                    tempTotalPage = tempTotalPage / 10;
-                }
+            	var tempTotalPage	= nTotalPage;
+            	var nTotalPageWidth	= 7;
+            	while( 9 < tempTotalPage ) {
+            		nTotalPageWidth += 7;
+            		tempTotalPage = tempTotalPage / 10;
+            	}
 
-                var nPageTxtWidth = nCurrPageWidth + nTotalPageWidth + 26;
+            	var nPageTxtWidth = nCurrPageWidth + nTotalPageWidth + 26;
 
                 var btnPrevPage = new graphic.Image({
-                    style	: {
-                        x : 0,
-                        y : 0,
-                        width : 20,
-                        height : 20,
-                        image : ( 1 == this.page ) ? this.btn_prev_disable : this.btn_prev
-                    }
+                	style	: {
+                		x : 0,
+                		y : 0,
+                		width : 20,
+                		height : 20,
+                		image : ( 1 == this.page ) ? this.btn_prev_disable : this.btn_prev
+                	}
                 });
                 var pageTxt = new graphic.Text({
                     style: {
@@ -255,13 +255,13 @@ define(function (require) {
                     silent 	: true
                 });
                 var btnNextPage = new graphic.Image({
-                    style	: {
-                        x : nPageTxtWidth + 20,
-                        y : 0,
-                        width : 20,
-                        height : 20,
-                        image : ( this.page == this.pageList.length ) ? this.btn_next_disable : this.btn_next
-                    }
+                	style	: {
+                		x : nPageTxtWidth + 20,
+                		y : 0,
+                		width : 20,
+                		height : 20,
+                		image : ( this.page == this.pageList.length ) ? this.btn_next_disable : this.btn_next
+                	}
                 });
 
                 var itemGroup = new graphic.Group( { id : 'pager' } );
@@ -271,42 +271,42 @@ define(function (require) {
                 group.add( itemGroup );
 
                 btnPrevPage.on(
-                    'click',
-                    curry(
-                        function() {
+                	'click',
+                	curry(
+                		function() {
 
-                            // 페이지 이동
-                            ( 1 < _this.page ) && ( _this.page-- );
+                			// 페이지 이동
+                			( 1 < _this.page ) && ( _this.page-- );
 
-                            // 페이지 정보 저장
-                            legendModel.mergeOption( { 'page' : _this.page } );
+                			// 페이지 정보 저장
+                			legendModel.mergeOption( { 'page' : _this.page } );
 
-                            // 변경 적용
-                            _this.render( legendModel, ecModel, api );
+                			// 변경 적용
+                			_this.render( legendModel, ecModel, api );
 
-                        }, api
-                    )
-                );
+		                }, api
+		            )
+		        );
                 btnNextPage.on(
-                    'click',
-                    curry(
-                        function() {
+                	'click',
+                	curry(
+                		function() {
 
-                            // 페이지 이동
-                            ( _this.pageList.length > _this.page ) && ( _this.page++ );
+                			// 페이지 이동
+                			( _this.pageList.length > _this.page ) && ( _this.page++ );
 
-                            // 페이지 정보 저장
-                            legendModel.mergeOption( { 'page' : _this.page } );
+                			// 페이지 정보 저장
+                			legendModel.mergeOption( { 'page' : _this.page } );
 
-                            // 변경 적용
-                            _this.render( legendModel, ecModel, api );
+                			// 변경 적용
+                			_this.render( legendModel, ecModel, api );
 
-                        }, api
-                    )
-                );
+		                }, api
+		            )
+		        );
 
                 // append legend
-                setGroup.apply( this );
+            	setGroup.apply( this );
 
             }
             // - add by eltriny
@@ -315,6 +315,7 @@ define(function (require) {
             // Render background after group is layout
             // FIXME
             listComponentHelper.addBackground(group, legendModel);
+
         },
 
         _createItem: function (
@@ -366,7 +367,7 @@ define(function (require) {
             var formatter = legendModel.get('formatter');
             var content = name;
             if (typeof formatter === 'string' && formatter) {
-                content = formatter.replace('{name}', name != null ? name : '');
+                content = formatter.replace('{name}', name);
             }
             else if (typeof formatter === 'function') {
                 content = formatter(name);
@@ -413,25 +414,25 @@ define(function (require) {
 
             // - add by eltriny
             if( this.usePage ) {
-                var nPages = this.pageList.length;
-                var itemWidth = itemGroup.getBoundingRect().width + legendModel.option.itemGap;
+            	var nPages = this.pageList.length;
+            	var itemWidth = itemGroup.getBoundingRect().width + legendModel.option.itemGap;
                 // -- add by dolkkok
                 // #201710413-02 : 차트화면과 현재까지 추가된 범례사이즈의 너비를 비교후 페이지 지정
                 if( 0 == nPages ||  this.currentLegnedWidth + itemWidth > this.chartWidth) {
-                    var currentPage = [];
-                    currentPage.push( itemGroup );
-                    this.pageList.push( currentPage );
+            		var currentPage = [];
+            		currentPage.push( itemGroup );
+            		this.pageList.push( currentPage );
                     if (nPages != 0) this.currentLegnedWidth = 0;
-                }
-                else {
-                    var currentPage = this.pageList[ nPages - 1 ];
-                    currentPage.push( itemGroup );
-                }
+            	}
+            	else {
+            		var currentPage = this.pageList[ nPages - 1 ];
+            		currentPage.push( itemGroup );
+            	}
                 // -- add by dolkkok
                 this.currentLegnedWidth += itemWidth;
             }
             else {
-                this.group.add( itemGroup );
+            	this.group.add( itemGroup );
             }
             // - add by eltriny
 

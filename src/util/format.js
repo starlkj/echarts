@@ -5,11 +5,9 @@ define(function (require) {
     var textContain = require('zrender/contain/text');
 
     var formatUtil = {};
-
     /**
      * 每三位默认加,格式化
-     * @param {string|number} x
-     * @return {string}
+     * @type {string|number} x
      */
     formatUtil.addCommas = function (x) {
         if (isNaN(x)) {
@@ -22,19 +20,12 @@ define(function (require) {
 
     /**
      * @param {string} str
-     * @param {boolean} [upperCaseFirst=false]
      * @return {string} str
      */
-    formatUtil.toCamelCase = function (str, upperCaseFirst) {
-        str = (str || '').toLowerCase().replace(/-(.)/g, function(match, group1) {
+    formatUtil.toCamelCase = function (str) {
+        return str.toLowerCase().replace(/-(.)/g, function(match, group1) {
             return group1.toUpperCase();
         });
-
-        if (upperCaseFirst && str) {
-            str = str.charAt(0).toUpperCase() + str.slice(1);
-        }
-
-        return str;
     };
 
     /**
@@ -61,7 +52,7 @@ define(function (require) {
         return val;
     };
 
-    var encodeHTML = formatUtil.encodeHTML = function (source) {
+    formatUtil.encodeHTML = function (source) {
         return String(source)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -78,12 +69,11 @@ define(function (require) {
 
     /**
      * Template formatter
-     * @param {string} tpl
-     * @param {Array.<Object>|Object} paramsList
-     * @param {boolean} [encode=false]
+     * @param  {string} tpl
+     * @param  {Array.<Object>|Object} paramsList
      * @return {string}
      */
-    formatUtil.formatTpl = function (tpl, paramsList, encode) {
+    formatUtil.formatTpl = function (tpl, paramsList) {
         if (!zrUtil.isArray(paramsList)) {
             paramsList = [paramsList];
         }
@@ -95,15 +85,13 @@ define(function (require) {
         var $vars = paramsList[0].$vars || [];
         for (var i = 0; i < $vars.length; i++) {
             var alias = TPL_VAR_ALIAS[i];
-            var val = wrapVar(alias, 0);
-            tpl = tpl.replace(wrapVar(alias), encode ? encodeHTML(val) : val);
+            tpl = tpl.replace(wrapVar(alias),  wrapVar(alias, 0));
         }
         for (var seriesIdx = 0; seriesIdx < seriesLen; seriesIdx++) {
             for (var k = 0; k < $vars.length; k++) {
-                var val = paramsList[seriesIdx][$vars[k]];
                 tpl = tpl.replace(
                     wrapVar(TPL_VAR_ALIAS[k], seriesIdx),
-                    encode ? encodeHTML(val) : val
+                    paramsList[seriesIdx][$vars[k]]
                 );
             }
         }
@@ -111,36 +99,6 @@ define(function (require) {
         return tpl;
     };
 
-    /**
-     * simple Template formatter
-     *
-     * @param {string} tpl
-     * @param {Object} param
-     * @param {boolean} [encode=false]
-     * @return {string}
-     */
-    formatUtil.formatTplSimple = function (tpl, param, encode) {
-        zrUtil.each(param, function (value, key) {
-            tpl = tpl.replace(
-                '{' + key + '}',
-                encode ? encodeHTML(value) : value
-            );
-        });
-        return tpl;
-    };
-
-    /**
-     * @param {string} color
-     * @param {string} [extraCssText]
-     * @return {string}
-     */
-    formatUtil.getTooltipMarker = function (color, extraCssText) {
-        return color
-            ? '<span style="display:inline-block;margin-right:5px;'
-                + 'border-radius:10px;width:9px;height:9px;background-color:'
-                + formatUtil.encodeHTML(color) + ';' + (extraCssText || '') + '"></span>'
-            : '';
-    };
 
     /**
      * @param {string} str
@@ -155,12 +113,9 @@ define(function (require) {
      * ISO Date format
      * @param {string} tpl
      * @param {number} value
-     * @param {boolean} [isUTC=false] Default in local time.
-     *           see `module:echarts/scale/Time`
-     *           and `module:echarts/util/number#parseDate`.
      * @inner
      */
-    formatUtil.formatTime = function (tpl, value, isUTC) {
+    formatUtil.formatTime = function (tpl, value) {
         if (tpl === 'week'
             || tpl === 'month'
             || tpl === 'quarter'
@@ -171,13 +126,12 @@ define(function (require) {
         }
 
         var date = numberUtil.parseDate(value);
-        var utc = isUTC ? 'UTC' : '';
-        var y = date['get' + utc + 'FullYear']();
-        var M = date['get' + utc + 'Month']() + 1;
-        var d = date['get' + utc + 'Date']();
-        var h = date['get' + utc + 'Hours']();
-        var m = date['get' + utc + 'Minutes']();
-        var s = date['get' + utc + 'Seconds']();
+        var y = date.getFullYear();
+        var M = date.getMonth() + 1;
+        var d = date.getDate();
+        var h = date.getHours();
+        var m = date.getMinutes();
+        var s = date.getSeconds();
 
         tpl = tpl.replace('MM', s2d(M))
             .toLowerCase()

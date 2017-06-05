@@ -6,7 +6,6 @@ define(function (require) {
     var zrUtil = require('zrender/core/util');
     var modelUtil = require('../../util/model');
     var Model = require('../../model/Model');
-    var formatUtil = require('../../util/format');
 
     var createGraphFromNodeEdge = require('../helper/createGraphFromNodeEdge');
 
@@ -63,24 +62,21 @@ define(function (require) {
                 });
 
                 var edgeLabelModel = self.getModel('edgeLabel');
-                // For option `edgeLabel` can be found by label.xxx.xxx on item mode.
-                var fakeSeriesModel = new Model(
-                    {label: edgeLabelModel.option},
-                    edgeLabelModel.parentModel,
-                    ecModel
-                );
-
+                var wrappedGetEdgeModel = function (path, parentModel) {
+                    var pathArr = (path || '').split('.');
+                    if (pathArr[0] === 'label') {
+                        parentModel = parentModel
+                            || edgeLabelModel.getModel(pathArr.slice(1));
+                    }
+                    var model = Model.prototype.getModel.call(this, pathArr, parentModel);
+                    model.getModel = wrappedGetEdgeModel;
+                    return model;
+                };
                 edgeData.wrapMethod('getItemModel', function (model) {
-                    model.customizeGetParent(edgeGetParent);
+                    // FIXME Wrap get method ?
+                    model.getModel = wrappedGetEdgeModel;
                     return model;
                 });
-
-                function edgeGetParent(path) {
-                    path = this.parsePath(path);
-                    return (path && path[0] === 'label')
-                        ? fakeSeriesModel
-                        : this.parentModel;
-                }
             }
         },
 
@@ -115,14 +111,9 @@ define(function (require) {
                 var edge = nodeData.graph.getEdgeByIndex(dataIndex);
                 var sourceName = nodeData.getName(edge.node1.dataIndex);
                 var targetName = nodeData.getName(edge.node2.dataIndex);
-
-                var html = [];
-                sourceName != null && html.push(sourceName);
-                targetName != null && html.push(targetName);
-                html = formatUtil.encodeHTML(html.join(' > '));
-
+                var html = sourceName + ' > ' + targetName;
                 if (params.value) {
-                    html += ' : ' + formatUtil.encodeHTML(params.value);
+                    html += ' : ' + params.value;
                 }
                 return html;
             }
@@ -156,8 +147,8 @@ define(function (require) {
             this.option.center = center;
         },
 
-        isAnimationEnabled: function () {
-            return GraphSeries.superCall(this, 'isAnimationEnabled')
+        ifEnableAnimation: function () {
+            return GraphSeries.superCall(this, 'ifEnableAnimation')
                 // Not enable animation when do force layout
                 && !(this.get('layout') === 'force' && this.get('force.layoutAnimation'));
         },

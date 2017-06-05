@@ -23,9 +23,12 @@
                 'echarts/component/legend',
                 'echarts/component/singleAxis',
                 'echarts/component/tooltip',
+           //     'echarts/component/axis'
                 ], function (echarts) {
 
-                    var chart = echarts.init(document.getElementById('main'));
+                    var chart = echarts.init(document.getElementById('main'), null, {
+                        renderer: 'canvas'
+                    });
 
                     window.onresize = function () {
                         chart.resize();
@@ -34,7 +37,15 @@
                     chart.setOption({
 
                         tooltip: {
-                            trigger: 'axis'
+                            trigger: 'axis',
+                            axisPointer: {
+                                type: 'line',
+                                lineStyle: {
+                                    color: 'rgba(0,0,0,0.2)',
+                                    width: 1,
+                                    type: 'solid'
+                                }
+                            }
                         },
 
                         legend: {

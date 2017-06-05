@@ -20,7 +20,7 @@ define(function(require) {
             // Enable legend selection for each data item
             // Use a function instead of direct access because data reference may changed
             this.legendDataProvider = function () {
-                return this.getRawData();
+                return this._dataBeforeProcessed;
             };
 
             this.updateSelectedMap(option.data);
@@ -43,7 +43,7 @@ define(function(require) {
 
         // Overwrite
         getDataParams: function (dataIndex) {
-            var data = this.getData();
+            var data = this._data;
             var params = PieSeries.superCall(this, 'getDataParams', dataIndex);
             var sum = data.getSum('value');
             // FIXME toFixed?
@@ -92,9 +92,6 @@ define(function(require) {
             // 南丁格尔玫瑰图模式，'radius'（半径） | 'area'（面积）
             // roseType: null,
 
-            // If still show when all data zero.
-            stillShowZeroSum: true,
-
             label: {
                 normal: {
                     // If rotate around circle
@@ -130,9 +127,6 @@ define(function(require) {
                 },
                 emphasis: {}
             },
-
-            // Animation type canbe expansion, scale
-            animationType: 'expansion',
 
             animationEasing: 'cubicOut',
 

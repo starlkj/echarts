@@ -18,12 +18,9 @@ define(function (require) {
             y2: end[1]
         };
     }
-
-    require('./AxisView').extend({
+    require('../../echarts').extendComponentView({
 
         type: 'angleAxis',
-
-        axisPointerClass: 'PolarAxisPointer',
 
         render: function (angleAxisModel, ecModel) {
             this.group.removeAll();
@@ -31,8 +28,9 @@ define(function (require) {
                 return;
             }
 
+            var polarModel = ecModel.getComponent('polar', angleAxisModel.get('polarIndex'));
             var angleAxis = angleAxisModel.axis;
-            var polar = angleAxis.polar;
+            var polar = polarModel.coordinateSystem;
             var radiusExtent = polar.getRadiusAxis().getExtent();
             var ticksAngles = angleAxis.getTicksCoords();
 
@@ -42,9 +40,7 @@ define(function (require) {
             }
 
             zrUtil.each(elementList, function (name) {
-                if (angleAxisModel.get(name +'.show')
-                    && (!angleAxis.scale.isBlank() || name === 'axisLine')
-                ) {
+                if (angleAxisModel.get(name +'.show')) {
                     this['_' + name](angleAxisModel, polar, ticksAngles, radiusExtent);
                 }
             }, this);

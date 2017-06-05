@@ -13,9 +13,7 @@ define(function(require) {
 
         getStyleUpdater: function () {
             return updateStyle;
-        },
-
-        dispose: zrUtil.noop
+        }
     });
 
     zrUtil.mixin(BoxplotView, whiskerBoxCommon.viewMixin, true);

@@ -119,29 +119,14 @@ define(function (require) {
         var layout = data.getItemLayout(idx);
         var sectorShape = zrUtil.extend({}, layout);
         sectorShape.label = null;
-
         if (firstCreate) {
             sector.setShape(sectorShape);
-
-            var animationType = seriesModel.getShallow('animationType');
-            if (animationType === 'scale') {
-                sector.shape.r = layout.r0;
-                graphic.initProps(sector, {
-                    shape: {
-                        r: layout.r
-                    }
-                }, seriesModel, idx);
-            }
-            // Expansion
-            else {
-                sector.shape.endAngle = layout.startAngle;
-                graphic.updateProps(sector, {
-                    shape: {
-                        endAngle: layout.endAngle
-                    }
-                }, seriesModel, idx);
-            }
-
+            sector.shape.endAngle = layout.startAngle;
+            graphic.updateProps(sector, {
+                shape: {
+                    endAngle: layout.endAngle
+                }
+            }, seriesModel, idx);
         }
         else {
             graphic.updateProps(sector, {
@@ -192,7 +177,7 @@ define(function (require) {
             }, 300, 'elasticOut');
         }
         sector.off('mouseover').off('mouseout').off('emphasis').off('normal');
-        if (itemModel.get('hoverAnimation') && seriesModel.isAnimationEnabled()) {
+        if (itemModel.get('hoverAnimation') && seriesModel.ifEnableAnimation()) {
             sector
                 .on('mouseover', onEmphasis)
                 .on('mouseout', onNormal)
@@ -298,7 +283,6 @@ define(function (require) {
 
             var hasAnimation = ecModel.get('animation');
             var isFirstRender = !oldData;
-            var animationType = seriesModel.get('animationType');
 
             var onSectorClick = zrUtil.curry(
                 updateDataSelected, this.uid, seriesModel, hasAnimation, api
@@ -309,8 +293,7 @@ define(function (require) {
             data.diff(oldData)
                 .add(function (idx) {
                     var piePiece = new PiePiece(data, idx);
-                    // Default expansion animation
-                    if (isFirstRender && animationType !== 'scale') {
+                    if (isFirstRender) {
                         piePiece.eachChild(function (child) {
                             child.stopAnimation(true);
                         });
@@ -338,11 +321,7 @@ define(function (require) {
                 })
                 .execute();
 
-            if (
-                hasAnimation && isFirstRender && data.count() > 0
-                // Default expansion animation
-                && animationType !== 'scale'
-            ) {
+            if (hasAnimation && isFirstRender && data.count() > 0) {
                 var shape = data.getItemLayout(0);
                 var r = Math.max(api.getWidth(), api.getHeight()) / 2;
 
@@ -354,8 +333,6 @@ define(function (require) {
 
             this._data = data;
         },
-
-        dispose: function () {},
 
         _createClipPath: function (
             cx, cy, r, startAngle, clockwise, cb, seriesModel
@@ -379,22 +356,7 @@ define(function (require) {
             }, seriesModel, cb);
 
             return clipPath;
-        },
-
-        /**
-         * @implement
-         */
-        containPoint: function (point, seriesModel) {
-            var data = seriesModel.getData();
-            var itemLayout = data.getItemLayout(0);
-            if (itemLayout) {
-                var dx = point[0] - itemLayout.cx;
-                var dy = point[1] - itemLayout.cy;
-                var radius = Math.sqrt(dx * dx + dy * dy);
-                return radius <= itemLayout.r && radius >= itemLayout.r0;
-            }
         }
-
     });
 
     return Pie;

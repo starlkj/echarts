@@ -13,20 +13,15 @@ define(function (require) {
     return {
         getLineStyle: function (excludes) {
             var style = getLineStyle.call(this, excludes);
-            var lineDash = this.getLineDash(style.lineWidth);
+            var lineDash = this.getLineDash();
             lineDash && (style.lineDash = lineDash);
             return style;
         },
 
-        getLineDash: function (lineWidth) {
-            if (lineWidth == null) {
-                lineWidth = 1;
-            }
+        getLineDash: function () {
             var lineType = this.get('type');
-            var dotSize = Math.max(lineWidth, 2);
-            var dashSize = lineWidth * 4;
             return (lineType === 'solid' || lineType == null) ? null
-                : (lineType === 'dashed' ? [dashSize, dashSize] : [dotSize, dotSize]);
+                : (lineType === 'dashed' ? [5, 5] : [2, 2]);
         }
     };
 });

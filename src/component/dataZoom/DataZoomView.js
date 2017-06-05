@@ -17,34 +17,47 @@ define(function (require) {
          *
          * @protected
          * @return {Object} {
-         *                   grid: [
+         *                   cartesians: [
          *                       {model: coord0, axisModels: [axis1, axis3], coordIndex: 1},
          *                       {model: coord1, axisModels: [axis0, axis2], coordIndex: 0},
          *                       ...
          *                   ],  // cartesians must not be null/undefined.
-         *                   polar: [
+         *                   polars: [
          *                       {model: coord0, axisModels: [axis4], coordIndex: 0},
          *                       ...
          *                   ],  // polars must not be null/undefined.
-         *                   singleAxis: [
-         *                       {model: coord0, axisModels: [], coordIndex: 0}
-         *                   ]
+         *                   axisModels: [axis0, axis1, axis2, axis3, axis4]
+         *                       // axisModels must not be null/undefined.
+         *                  }
          */
-        getTargetCoordInfo: function () {
+        getTargetInfo: function () {
             var dataZoomModel = this.dataZoomModel;
             var ecModel = this.ecModel;
-            var coordSysLists = {};
+            var cartesians = [];
+            var polars = [];
+            var axisModels = [];
 
             dataZoomModel.eachTargetAxis(function (dimNames, axisIndex) {
                 var axisModel = ecModel.getComponent(dimNames.axis, axisIndex);
                 if (axisModel) {
-                    var coordModel = axisModel.getCoordSysModel();
-                    coordModel && save(
-                        coordModel,
-                        axisModel,
-                        coordSysLists[coordModel.mainType] || (coordSysLists[coordModel.mainType] = []),
-                        coordModel.componentIndex
-                    );
+                    axisModels.push(axisModel);
+                    var coordSysName;
+                    if (dimNames.axis === 'xAxis' || dimNames.axis === 'yAxis') {
+                        coordSysName = 'grid';
+                    }
+                    else {
+                        // Polar
+                        coordSysName = 'polar';
+                    }
+                    var coordModel = ecModel.queryComponents({
+                        mainType: coordSysName,
+                        index: axisModel.get(coordSysName + 'Index'),
+                        id: axisModel.get(coordSysName + 'Id')
+                    })[0];
+
+                    if (coordModel != null) {
+                        save(coordModel, axisModel, coordSysName === 'grid' ? cartesians : polars, coordModel.componentIndex);
+                    }
                 }
             }, this);
 
@@ -64,7 +77,11 @@ define(function (require) {
                 item.axisModels.push(axisModel);
             }
 
-            return coordSysLists;
+            return {
+                cartesians: cartesians,
+                polars: polars,
+                axisModels: axisModels
+            };
         }
 
     });

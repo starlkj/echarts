@@ -13,12 +13,15 @@ define(function (require) {
         type: 'toolbox',
 
         render: function (toolboxModel, ecModel, api, payload) {
+        	
             var group = this.group;
             group.removeAll();
 
+            /*
             if (!toolboxModel.get('show')) {
-                return;
+            	return;
             }
+            */
 
             var itemSize = +toolboxModel.get('itemSize');
             var featureOpts = toolboxModel.get('feature') || {};
@@ -28,37 +31,37 @@ define(function (require) {
             zrUtil.each(featureOpts, function (opt, name) {
                 featureNames.push(name);
             });
-
+            
             // add by eltriny - BugFix1 : toggleSelectZoom --- Start
-            /*
-             if( !toolboxModel.get( 'show' ) ) {
-
-             // add by eltriny - toolbox 가 hide인 상태에서도 feature 에 접근할 수 있도록 외부 오픈함
-             for( var idx = 0, nMax = featureNames.length; idx < nMax; idx++ ) {
-             var featureName = featureNames[ idx ];
-             var Feature = featureManager.get(featureName);
-             if (!Feature) {
-             return;
-             }
-             var featureOpt 	 = featureOpts[featureName];
-             var featureModel = new Model( featureOpt, toolboxModel, toolboxModel.ecModel );
-             var feature = new Feature( featureModel, ecModel, api );
-             features[featureName] = feature;
-
-             // pseudo function
-             featureModel.setIconStatus = function() {}
-
-             if( feature.render ) {
-             feature.render( featureModel, ecModel, api, payload );
-             }
-             }
-
-             this._features = features;
-
-             return;
-             }
-             */
-            // add by eltriny - BugFix1 : toggleSelectZoom --- End
+/*            
+            if( !toolboxModel.get( 'show' ) ) {
+            	
+            	// add by eltriny - toolbox 가 hide인 상태에서도 feature 에 접근할 수 있도록 외부 오픈함
+            	for( var idx = 0, nMax = featureNames.length; idx < nMax; idx++ ) {
+            		var featureName = featureNames[ idx ];
+            		var Feature = featureManager.get(featureName);
+            		if (!Feature) {
+            			return;
+            		}
+            		var featureOpt 	 = featureOpts[featureName];
+            		var featureModel = new Model( featureOpt, toolboxModel, toolboxModel.ecModel );
+            		var feature = new Feature( featureModel, ecModel, api );
+            		features[featureName] = feature;
+            		
+            		// pseudo function
+            		featureModel.setIconStatus = function() {}
+            		
+                    if( feature.render ) {
+                        feature.render( featureModel, ecModel, api, payload );
+                    }            		
+            	}
+            	
+            	this._features = features;
+            	
+            	return;
+            }
+*/            
+            // add by eltriny - BugFix1 : toggleSelectZoom --- End 
 
             (new DataDiffer(this._featureNames || [], featureNames))
                 .add(process)
@@ -108,25 +111,30 @@ define(function (require) {
                     feature.dispose && feature.dispose(ecModel, api);
                     return;
                 }
-
+/*
                 if (!featureModel.get('show') || feature.unusable) {
                     feature.remove && feature.remove(ecModel, api);
                     return;
                 }
-
-                createIconPaths(featureModel, feature, featureName);
-
-                featureModel.setIconStatus = function (iconName, status) {
-                    var option = this.option;
-                    var iconPaths = this.iconPaths;
-                    option.iconStatus = option.iconStatus || {};
-                    option.iconStatus[iconName] = status;
-                    // FIXME
-                    iconPaths[iconName] && iconPaths[iconName].trigger(status);
-                };
-
+*/
+                if( toolboxModel.get('show')  ) {
+	                createIconPaths(featureModel, feature, featureName);
+	
+	                featureModel.setIconStatus = function (iconName, status) {
+	                    var option = this.option;
+	                    var iconPaths = this.iconPaths;
+	                    option.iconStatus = option.iconStatus || {};
+	                    option.iconStatus[iconName] = status;
+	                    // FIXME
+	                    iconPaths[iconName] && iconPaths[iconName].trigger(status);
+	                };	
+                }
+                else {
+                	featureModel.setIconStatus = function() {}                	
+                }
+                
                 if (feature.render) {
-                    feature.render(featureModel, ecModel, api, payload);
+                	feature.render(featureModel, ecModel, api, payload);
                 }
             }
 
@@ -186,8 +194,6 @@ define(function (require) {
                     if (toolboxModel.get('showTitle')) {
                         path.__title = titles[iconName];
                         path.on('mouseover', function () {
-                                // Should not reuse above hoverStyle, which might be modified.
-                                var hoverStyle = iconStyleModel.getModel('emphasis').getItemStyle();
                                 path.setStyle({
                                     text: titles[iconName],
                                     textPosition: hoverStyle.textPosition || 'bottom',
@@ -245,7 +251,7 @@ define(function (require) {
                     }
                 }
             });
-        },
+        },	// Function - render
 
         updateView: function (toolboxModel, ecModel, api, payload) {
             zrUtil.each(this._features, function (feature) {

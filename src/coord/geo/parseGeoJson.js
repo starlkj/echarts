@@ -12,11 +12,6 @@ define(function (require) {
         if (!json.UTF8Encoding) {
             return json;
         }
-        var encodeScale = json.UTF8Scale;
-        if (encodeScale == null) {
-            encodeScale = 1024;
-        }
-
         var features = json.features;
 
         for (var f = 0; f < features.length; f++) {
@@ -31,8 +26,7 @@ define(function (require) {
                 if (geometry.type === 'Polygon') {
                     coordinates[c] = decodePolygon(
                         coordinate,
-                        encodeOffsets[c],
-                        encodeScale
+                        encodeOffsets[c]
                     );
                 }
                 else if (geometry.type === 'MultiPolygon') {
@@ -40,8 +34,7 @@ define(function (require) {
                         var polygon = coordinate[c2];
                         coordinate[c2] = decodePolygon(
                             polygon,
-                            encodeOffsets[c][c2],
-                            encodeScale
+                            encodeOffsets[c][c2]
                         );
                     }
                 }
@@ -52,7 +45,7 @@ define(function (require) {
         return json;
     }
 
-    function decodePolygon(coordinate, encodeOffsets, encodeScale) {
+    function decodePolygon(coordinate, encodeOffsets) {
         var result = [];
         var prevX = encodeOffsets[0];
         var prevY = encodeOffsets[1];
@@ -70,10 +63,23 @@ define(function (require) {
             prevX = x;
             prevY = y;
             // Dequantize
-            result.push([x / encodeScale, y / encodeScale]);
+            result.push([x / 1024, y / 1024]);
         }
 
         return result;
+    }
+
+    /**
+     * @inner
+     */
+    function flattern2D(array) {
+        var ret = [];
+        for (var i = 0; i < array.length; i++) {
+            for (var k = 0; k < array[i].length; k++) {
+                ret.push(array[i][k]);
+            }
+        }
+        return ret;
     }
 
     /**
@@ -87,44 +93,22 @@ define(function (require) {
 
         return zrUtil.map(zrUtil.filter(geoJson.features, function (featureObj) {
             // Output of mapshaper may have geometry null
-            return featureObj.geometry
-                && featureObj.properties
-                && featureObj.geometry.coordinates.length > 0;
+            return featureObj.geometry && featureObj.properties;
         }), function (featureObj) {
             var properties = featureObj.properties;
-            var geo = featureObj.geometry;
+            var geometry = featureObj.geometry;
 
-            var coordinates = geo.coordinates;
+            var coordinates = geometry.coordinates;
 
-            var geometries = [];
-            if (geo.type === 'Polygon') {
-                geometries.push({
-                    type: 'polygon',
-                    // According to the GeoJSON specification.
-                    // First must be exterior, and the rest are all interior(holes).
-                    exterior: coordinates[0],
-                    interiors: coordinates.slice(1)
-                });
-            }
-            if (geo.type === 'MultiPolygon') {
-                zrUtil.each(coordinates, function (item) {
-                    if (item[0]) {
-                        geometries.push({
-                            type: 'polygon',
-                            exterior: item[0],
-                            interiors: item.slice(1)
-                        });
-                    }
-                });
+            if (geometry.type === 'MultiPolygon') {
+                coordinates = flattern2D(coordinates);
             }
 
-            var region = new Region(
+            return new Region(
                 properties.name,
-                geometries,
+                coordinates,
                 properties.cp
             );
-            region.properties = properties;
-            return region;
         });
     };
 });
