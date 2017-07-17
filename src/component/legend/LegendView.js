@@ -147,6 +147,7 @@ define(function (require) {
                 else {
                     // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- Start
                     if (!legendModel.get('seriesSync')) {
+
                         var data = [];
                         var legendIdx = legendModel.get('data').indexOf(name);
                         var colorList = legendModel.get('color');
@@ -160,11 +161,11 @@ define(function (require) {
                             itemAlign, color,
                             selectMode
                         );
-                        itemGroup.on('click', curry(dispatchSelectAction, name, api))
+                        itemGroup.on('click', curry(dispatchSelectAction, name, api));
                         legendDrawedMap[name] = true;
-
                     }
                     // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End
+
                     // Data legend of pie, funnel
                     ecModel.eachRawSeries(function (seriesModel) {
                         // In case multiple series has same data name
@@ -172,15 +173,26 @@ define(function (require) {
                             return;
                         }
                         if (seriesModel.legendDataProvider) {
-                            var data = seriesModel.legendDataProvider();
-                            var idx = data.indexOfName(name);
-                            if (idx < 0) {
+                            // var data = seriesModel.legendDataProvider();
+                            // var idx = data.indexOfName(name);
+                            // if (idx < 0) {
+                            //     return;
+                            // }
+
+                            //var color = data.getItemVisual(idx, 'color');
+
+                            //var legendSymbolType = 'circle';
+
+                            // -- add by dolkkok - #20170630-01 : 이미 등록된 범례항목인지 체크(pie) 후 생성 --- start
+                            if(legendDrawedMap[name]) {
                                 return;
                             }
-
-                            var color = data.getItemVisual(idx, 'color');
-
-                            var legendSymbolType = 'circle';
+                            var legendIdx = legendModel.get('data').indexOf(name);
+                            var colorList = legendModel.get('color');
+                            var colorIdx =  legendIdx >= colorList.length ? legendIdx % colorList.length : legendIdx;
+                            var color = colorList[colorIdx] || seriesModel.getData().getVisual('color');
+                            var legendSymbolType = legendModel.get('symbol');
+                            // -- add by dolkkok - #20170630-01 : 이미 등록된 범례항목인지 체크(pie) 후 생성 --- end
 
                             var itemGroup = this._createItem(
                                 name, itemModel, legendModel,
@@ -189,8 +201,9 @@ define(function (require) {
                                 selectMode
                             );
 
+
                             itemGroup.on('click', curry(dispatchSelectAction, name, api))
-                                // FIXME Should not specify the series name
+                            // FIXME Should not specify the series name
                                 .on('mouseover', curry(dispatchHighlightAction, seriesModel, name, api))
                                 .on('mouseout', curry(dispatchDownplayAction, seriesModel, name, api));
 
