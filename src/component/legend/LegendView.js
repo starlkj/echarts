@@ -173,25 +173,22 @@ define(function (require) {
                             return;
                         }
                         if (seriesModel.legendDataProvider) {
-                            // var data = seriesModel.legendDataProvider();
-                            // var idx = data.indexOfName(name);
-                            // if (idx < 0) {
-                            //     return;
-                            // }
-
-                            //var color = data.getItemVisual(idx, 'color');
-
-                            //var legendSymbolType = 'circle';
-
                             // -- add by dolkkok - #20170630-01 : 이미 등록된 범례항목인지 체크(pie) 후 생성 --- start
                             if(legendDrawedMap[name]) {
                                 return;
                             }
-                            var legendIdx = legendModel.get('data').indexOf(name);
-                            var colorList = legendModel.get('color');
-                            var colorIdx =  legendIdx >= colorList.length ? legendIdx % colorList.length : legendIdx;
-                            var color = colorList[colorIdx] || seriesModel.getData().getVisual('color');
-                            var legendSymbolType = legendModel.get('symbol');
+                            var data = seriesModel.legendDataProvider();
+                            var idx = data.indexOfName(name);
+                            if (idx < 0) {
+                                return;
+                            }
+                            var color = data.getItemVisual(idx, 'color');
+                            var legendSymbolType = 'circle';
+                            // var legendIdx = legendModel.get('data').indexOf(name);
+                            // var colorList = legendModel.get('color');
+                            // var colorIdx =  legendIdx >= colorList.length ? legendIdx % colorList.length : legendIdx;
+                            // var color = colorList[colorIdx] || seriesModel.getData().getVisual('color');
+                            // var legendSymbolType = legendModel.get('symbol');
                             // -- add by dolkkok - #20170630-01 : 이미 등록된 범례항목인지 체크(pie) 후 생성 --- end
 
                             var itemGroup = this._createItem(
