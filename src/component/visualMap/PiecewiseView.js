@@ -12,6 +12,9 @@ define(function(require) {
 
     // Group 설정 -- this 설정 필요
     function setGroup() {
+        // -- add by dolkkok
+        // #201710804-03 : 페이징처리가 필요없는 경우는 페이지 영역 삭제
+        if(this.pageList.length <= 1) this.group.removeAll();
         var pageItems = this.pageList[ this.page - 1 ];
         for( var idx = 0, nMax = pageItems.length; idx < nMax; idx++ ) {
             this.group.add( pageItems[ idx ] );
@@ -225,14 +228,23 @@ define(function(require) {
                     // -- add by dolkkok
                     // #201710413-02 : 차트화면과 현재까지 추가된 범례사이즈의 너비를 비교후 페이지 지정
                     if( 0 == nPages ||  this.currentLegnedWidth + itemWidth > this.chartWidth) {
-                        var currentPage = [];
-                        currentPage.push( itemGroup );
-                        this.pageList.push( currentPage );
+                        var newPage = [];
+                        newPage.push( itemGroup );
+                        this.pageList.push( newPage );
                         if (nPages != 0) this.currentLegnedWidth = 0;
                     }
                     else {
                         var currentPage = this.pageList[ nPages - 1 ];
-                        currentPage.push( itemGroup );
+                        // -- add by dolkkok
+                        // #201710804-02 : 페이지당 범례 개수를 초과하면 다음페이지에 생성
+                        if(legendModel.get('pageItems') <= currentPage.length) {
+                            var newPage = [];
+                            newPage.push( itemGroup );
+                            this.pageList.push( newPage );
+                            if (nPages != 0) this.currentLegnedWidth = 0;
+                        } else {
+                            currentPage.push( itemGroup );
+                        }
                     }
                     // -- add by dolkkok
                     this.currentLegnedWidth += itemWidth;

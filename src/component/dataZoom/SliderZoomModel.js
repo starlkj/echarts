@@ -57,8 +57,8 @@ define(function(require) {
             fillerColor: 'rgba(41,123,184,0.2)',
             //fillerColor: 'rgba(167,183,204,0.4)',   원본  // Color of selected area.
             // handleColor: 'rgba(89,170,216,0.95)',   원본 // Color of handle.
-            // add by starlkj
-            handleIcon: 'M24 295 c0 -165 2 -234 3 -153 2 81 2 216 0 300 -1 84 -3 18 -3 -147z M0 295 c0 -63 1 -65 25 -65 24 0 25 2 25 65 0 63 -1 65 -25 65 -24 0 -25 -2 -25 -65z',
+            // add by dolkkok
+            handleIcon: 'path://M306.1,413c0,2.2-1.8,4-4,4h-59.8c-2.2,0-4-1.8-4-4V200.8c0-2.2,1.8-4,4-4h59.8c2.2,0,4,1.8,4,4V413z',
             // handleIcon: 'path://M4.9,17.8c0-1.4,4.5-10.5,5.5-12.4c0-0.1,0.6-1.1,0.9-1.1c0.4,0,0.9,1,0.9,1.1c1.1,2.2,5.4,11,5.4,12.4v17.8c0,1.5-0.6,2.1-1.3,2.1H6.1c-0.7,0-1.3-0.6-1.3-2.1V17.8z',
             // Percent of the slider height
             handleSize: '100%',

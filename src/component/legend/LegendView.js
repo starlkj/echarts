@@ -40,6 +40,9 @@ define(function (require) {
 
     // Group 설정 -- this 설정 필요
     function setGroup() {
+        // -- add by dolkkok
+        // #201710804-03 : 페이징처리가 필요없는 경우는 페이지 영역 삭제
+        if(this.pageList.length <= 1) this.group.removeAll();
         var pageItems = this.pageList[ this.page - 1 ];
         for( var idx = 0, nMax = pageItems.length; idx < nMax; idx++ ) {
             this.group.add( pageItems[ idx ] );
@@ -345,9 +348,14 @@ define(function (require) {
             var legendGlobalTooltipModel = tooltipModel.parentModel;
 
             // Use user given icon first
+            // -- add by dolkkok
+            // #201710804-01 : 범례 영역 중앙에 위치하도록 조정
+            var legendHeight = legendModel.get('height') || 30;
+            legendHeight -= legendModel.get('padding') * 2;
+            var itemY = (legendHeight - itemHeight) / 2;
             legendSymbolType = itemIcon || legendSymbolType;
             itemGroup.add(symbolCreator.createSymbol(
-                legendSymbolType, 0, 0, itemWidth, itemHeight, isSelected ? color : inactiveColor
+                legendSymbolType, 0, itemY, itemWidth, itemHeight, isSelected ? color : inactiveColor
             ));
 
             // Compose symbols
@@ -384,13 +392,16 @@ define(function (require) {
                 style: {
                     text: content,
                     x: textX,
-                    y: itemHeight / 2,
+                    y: legendModel.get('padding') + itemY, // -- add by dolkkok
                     fill: isSelected ? textStyleModel.getTextColor() : inactiveColor,
                     textFont: textStyleModel.getFont(),
                     textAlign: textAlign,
                     textVerticalAlign: 'middle'
                 }
             });
+            // -- add by dolkkok
+            // #201710804-01 : 범례 영역 중앙에 위치하도록 조정
+            text.style.y += (itemHeight - text.getBoundingRect().height);
             itemGroup.add(text);
 
             // Add a invisible rect to increase the area of mouse hover
@@ -425,15 +436,24 @@ define(function (require) {
                 var itemWidth = itemGroup.getBoundingRect().width + legendModel.option.itemGap;
                 // -- add by dolkkok
                 // #201710413-02 : 차트화면과 현재까지 추가된 범례사이즈의 너비를 비교후 페이지 지정
-                if( 0 == nPages ||  this.currentLegnedWidth + itemWidth > this.chartWidth) {
-                    var currentPage = [];
-                    currentPage.push( itemGroup );
-                    this.pageList.push( currentPage );
+                if( 0 == nPages || this.currentLegnedWidth + itemWidth > this.chartWidth) {
+                    var newPage = [];
+                    newPage.push( itemGroup );
+                    this.pageList.push( newPage );
                     if (nPages != 0) this.currentLegnedWidth = 0;
                 }
                 else {
                     var currentPage = this.pageList[ nPages - 1 ];
-                    currentPage.push( itemGroup );
+                    // -- add by dolkkok
+                    // #201710804-02 : 페이지당 범례 개수를 초과하면 다음페이지에 생성
+                    if(legendModel.get('pageItems') <= currentPage.length) {
+                        var newPage = [];
+                        newPage.push( itemGroup );
+                        this.pageList.push( newPage );
+                        if (nPages != 0) this.currentLegnedWidth = 0;
+                    } else {
+                        currentPage.push( itemGroup );
+                    }
                 }
                 // -- add by dolkkok
                 this.currentLegnedWidth += itemWidth;

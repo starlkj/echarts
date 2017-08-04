@@ -57880,6 +57880,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    // Group 설정 -- this 설정 필요
 	    function setGroup() {
+	        // -- add by dolkkok
+	        // #201710804-03 : 페이징처리가 필요없는 경우는 페이지 영역 삭제
+	        if(this.pageList.length <= 1) this.group.removeAll();
 	        var pageItems = this.pageList[ this.page - 1 ];
 	        for( var idx = 0, nMax = pageItems.length; idx < nMax; idx++ ) {
 	            this.group.add( pageItems[ idx ] );
@@ -58185,9 +58188,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var legendGlobalTooltipModel = tooltipModel.parentModel;
 
 	            // Use user given icon first
+	            // -- add by dolkkok
+	            // #201710804-01 : 범례 영역 중앙에 위치하도록 조정
+	            var legendHeight = legendModel.get('height') || 30;
+	            legendHeight -= legendModel.get('padding') * 2;
+	            var itemY = (legendHeight - itemHeight) / 2;
 	            legendSymbolType = itemIcon || legendSymbolType;
 	            itemGroup.add(symbolCreator.createSymbol(
-	                legendSymbolType, 0, 0, itemWidth, itemHeight, isSelected ? color : inactiveColor
+	                legendSymbolType, 0, itemY, itemWidth, itemHeight, isSelected ? color : inactiveColor
 	            ));
 
 	            // Compose symbols
@@ -58224,13 +58232,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	                style: {
 	                    text: content,
 	                    x: textX,
-	                    y: itemHeight / 2,
+	                    y: legendModel.get('padding') + itemY, // -- add by dolkkok
 	                    fill: isSelected ? textStyleModel.getTextColor() : inactiveColor,
 	                    textFont: textStyleModel.getFont(),
 	                    textAlign: textAlign,
 	                    textVerticalAlign: 'middle'
 	                }
 	            });
+	            // -- add by dolkkok
+	            // #201710804-01 : 범례 영역 중앙에 위치하도록 조정
+	            text.style.y += (itemHeight - text.getBoundingRect().height);
 	            itemGroup.add(text);
 
 	            // Add a invisible rect to increase the area of mouse hover
@@ -58265,15 +58276,24 @@ return /******/ (function(modules) { // webpackBootstrap
 	                var itemWidth = itemGroup.getBoundingRect().width + legendModel.option.itemGap;
 	                // -- add by dolkkok
 	                // #201710413-02 : 차트화면과 현재까지 추가된 범례사이즈의 너비를 비교후 페이지 지정
-	                if( 0 == nPages ||  this.currentLegnedWidth + itemWidth > this.chartWidth) {
-	                    var currentPage = [];
-	                    currentPage.push( itemGroup );
-	                    this.pageList.push( currentPage );
+	                if( 0 == nPages || this.currentLegnedWidth + itemWidth > this.chartWidth) {
+	                    var newPage = [];
+	                    newPage.push( itemGroup );
+	                    this.pageList.push( newPage );
 	                    if (nPages != 0) this.currentLegnedWidth = 0;
 	                }
 	                else {
 	                    var currentPage = this.pageList[ nPages - 1 ];
-	                    currentPage.push( itemGroup );
+	                    // -- add by dolkkok
+	                    // #201710804-02 : 페이지당 범례 개수를 초과하면 다음페이지에 생성
+	                    if(legendModel.get('pageItems') <= currentPage.length) {
+	                        var newPage = [];
+	                        newPage.push( itemGroup );
+	                        this.pageList.push( newPage );
+	                        if (nPages != 0) this.currentLegnedWidth = 0;
+	                    } else {
+	                        currentPage.push( itemGroup );
+	                    }
 	                }
 	                // -- add by dolkkok
 	                this.currentLegnedWidth += itemWidth;
@@ -65685,8 +65705,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	            fillerColor: 'rgba(41,123,184,0.2)',
 	            //fillerColor: 'rgba(167,183,204,0.4)',   원본  // Color of selected area.
 	            // handleColor: 'rgba(89,170,216,0.95)',   원본 // Color of handle.
-	            // add by starlkj
-	            handleIcon: 'M24 295 c0 -165 2 -234 3 -153 2 81 2 216 0 300 -1 84 -3 18 -3 -147z M0 295 c0 -63 1 -65 25 -65 24 0 25 2 25 65 0 63 -1 65 -25 65 -24 0 -25 -2 -25 -65z',
+	            // add by dolkkok
+	            handleIcon: 'path://M306.1,413c0,2.2-1.8,4-4,4h-59.8c-2.2,0-4-1.8-4-4V200.8c0-2.2,1.8-4,4-4h59.8c2.2,0,4,1.8,4,4V413z',
 	            // handleIcon: 'path://M4.9,17.8c0-1.4,4.5-10.5,5.5-12.4c0-0.1,0.6-1.1,0.9-1.1c0.4,0,0.9,1,0.9,1.1c1.1,2.2,5.4,11,5.4,12.4v17.8c0,1.5-0.6,2.1-1.3,2.1H6.1c-0.7,0-1.3-0.6-1.3-2.1V17.8z',
 	            // Percent of the slider height
 	            handleSize: '100%',
