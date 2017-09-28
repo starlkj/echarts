@@ -53,9 +53,7 @@ define(function(require) {
                                                     // if dataBackgroundColor is set, borderColor
                                                     // is ignored.
 
-            // add by starlkj
-            fillerColor: 'rgba(41,123,184,0.2)',
-            //fillerColor: 'rgba(167,183,204,0.4)',   원본  // Color of selected area.
+            fillerColor: 'rgba(167,183,204,0.4)',     // Color of selected area.
             // handleColor: 'rgba(89,170,216,0.95)',   원본 // Color of handle.
             // add by dolkkok
             handleIcon: 'path://M306.1,413c0,2.2-1.8,4-4,4h-59.8c-2.2,0-4-1.8-4-4V200.8c0-2.2,1.8-4,4-4h59.8c2.2,0,4,1.8,4,4V413z',
@@ -64,9 +62,7 @@ define(function(require) {
             handleSize: '100%',
 
             handleStyle: {
-                // add by starlkj
-                color: '#297bb8'
-                // color: '#a7b7cc'
+                color: '#a7b7cc'
             },
 
             labelPrecision: null,
