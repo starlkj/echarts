@@ -1,56 +1,50 @@
+import * as echarts from '../../echarts';
+
 /**
- * @file Brush action
+ * payload: {
+ *      brushIndex: number, or,
+ *      brushId: string, or,
+ *      brushName: string,
+ *      globalRanges: Array
+ * }
  */
-define(function(require) {
+echarts.registerAction(
+        {type: 'brush', event: 'brush' /*, update: 'updateView' */},
+    function (payload, ecModel) {
+        ecModel.eachComponent({mainType: 'brush', query: payload}, function (brushModel) {
+            brushModel.setAreas(payload.areas);
+        });
+    }
+);
 
-    var echarts = require('../../echarts');
+/**
+ * payload: {
+ *      brushComponents: [
+ *          {
+ *              brushId,
+ *              brushIndex,
+ *              brushName,
+ *              series: [
+ *                  {
+ *                      seriesId,
+ *                      seriesIndex,
+ *                      seriesName,
+ *                      rawIndices: [21, 34, ...]
+ *                  },
+ *                  ...
+ *              ]
+ *          },
+ *          ...
+ *      ]
+ * }
+ */
+echarts.registerAction(
+        {type: 'brushSelect', event: 'brushSelected', update: 'none'},
+    function () {}
+);
 
-    /**
-     * payload: {
-     *      brushIndex: number, or,
-     *      brushId: string, or,
-     *      brushName: string,
-     *      globalRanges: Array
-     * }
-     */
-    echarts.registerAction(
-         {type: 'brush', event: 'brush', update: 'updateView'},
-        function (payload, ecModel) {
-            ecModel.eachComponent({mainType: 'brush', query: payload}, function (brushModel) {
-                brushModel.setAreas(payload.areas);
-            });
-        }
-    );
-
-    /**
-     * payload: {
-     *      brushComponents: [
-     *          {
-     *              brushId,
-     *              brushIndex,
-     *              brushName,
-     *              series: [
-     *                  {
-     *                      seriesId,
-     *                      seriesIndex,
-     *                      seriesName,
-     *                      rawIndices: [21, 34, ...]
-     *                  },
-     *                  ...
-     *              ]
-     *          },
-     *          ...
-     *      ]
-     * }
-     */
-    echarts.registerAction(
-         {type: 'brushSelect', event: 'brushSelected', update: 'none'},
-        function () {}
-    );
-
-    // add by eltriny
-    echarts.registerAction(
-        {type: 'brushDragEnd', event: 'brushDragEnd', update: 'none'},
-        function () {}
-    );
-});
+// add by eltriny
+echarts.registerAction(
+    {type: 'brushDragEnd', event: 'brushDragEnd', update: 'none'},
+    function () {}
+);

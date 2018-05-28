@@ -1,144 +1,140 @@
-define(function (require) {
+import * as echarts from '../../echarts';
+import * as zrUtil from 'zrender/src/core/util';
+import BrushController from '../helper/BrushController';
 
-    var zrUtil = require('zrender/core/util');
-    var BrushController = require('../helper/BrushController');
-    var echarts = require('../../echarts');
+export default echarts.extendComponentView({
 
-    return echarts.extendComponentView({
+    type: 'brush',
 
-        type: 'brush',
-
-        init: function (ecModel, api) {
-
-            /**
-             * @readOnly
-             * @type {module:echarts/model/Global}
-             */
-            this.ecModel = ecModel;
-
-            /**
-             * @readOnly
-             * @type {module:echarts/ExtensionAPI}
-             */
-            this.api = api;
-
-            /**
-             * @readOnly
-             * @type {module:echarts/component/brush/BrushModel}
-             */
-            this.model;
-
-            /**
-             * @private
-             * @type {module:echarts/component/helper/BrushController}
-             */
-            (this._brushController = new BrushController(api.getZr()))
-                .on('brush', zrUtil.bind(this._onBrush, this))
-                .mount();
-
-            // add by eltriny
-            // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
-            this._brushSelectData = null;
-
-            // add by eltriny
-            // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
-            this.api.on( 'brushSelected', zrUtil.bind( this._onBrushSelected, this ) );
-        },
+    init: function (ecModel, api) {
 
         /**
-         * @override
+         * @readOnly
+         * @type {module:echarts/model/Global}
          */
-        render: function (brushModel) {
-            this.model = brushModel;
-            return updateController.apply(this, arguments);
-        },
+        this.ecModel = ecModel;
 
         /**
-         * @override
+         * @readOnly
+         * @type {module:echarts/ExtensionAPI}
          */
-        updateView: updateController,
+        this.api = api;
 
         /**
-         * @override
+         * @readOnly
+         * @type {module:echarts/component/brush/BrushModel}
          */
-        updateLayout: updateController,
-
-        /**
-         * @override
-         */
-        updateVisual: updateController,
-
-        /**
-         * @override
-         */
-        dispose: function () {
-            this._brushController.dispose();
-        },
+        this.model;
 
         /**
          * @private
-         * add by eltriny
+         * @type {module:echarts/component/helper/BrushController}
          */
-        _onBrushSelected: function ( selectedData ) {
-            this._brushSelectData = selectedData.batch;
-        },
+        (this._brushController = new BrushController(api.getZr()))
+            .on('brush', zrUtil.bind(this._onBrush, this))
+            .mount();
 
-        /**
-         * @private
-         */
-        _onBrush: function (areas, opt) {
-            var modelId = this.model.id;
+        // add by eltriny
+        // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
+        this._brushSelectData = null;
 
-            // add by eltriny
-            if( opt.isClick ) {
-                return;
-            }
+        // add by eltriny
+        // brushDragEnd 에서 brushSelected 의 데이터를 전달하기 위해서 추가
+        this.api.on( 'brushSelected', zrUtil.bind( this._onBrushSelected, this ) );
+    },
 
-            // add by eltriny
-            // Brush Drag End 시 이벤트 발생
-            if( opt.isDragEnd ) {
-                this.api.dispatchAction(
-                    {
-                        type			: 'brushDragEnd',
-                        brushId			: modelId,
-                        areas			: zrUtil.clone(areas),
-                        $from			: modelId,
-                        brushSelectData : zrUtil.clone( this._brushSelectData )
-                    }
-                );
+    /**
+     * @override
+     */
+    render: function (brushModel) {
+        this.model = brushModel;
+        return updateController.apply(this, arguments);
+    },
 
-                this._brushSelectData = null;
-            }
+    /**
+     * @override
+     */
+    updateView: updateController,
 
-            if( opt.isEnd && opt.removeOnClick ) {
-                this.api.dispatchAction( { type: 'enableTip' } );
-            }
-            else {
-                this.api.dispatchAction( { type: 'disableTip' } );
-            }
+    // /**
+    //  * @override
+    //  */
+    // updateLayout: updateController,
 
-            this.model.brushTargetManager.setOutputRanges(areas, this.ecModel);
+    // /**
+    //  * @override
+    //  */
+    // updateVisual: updateController,
 
-            // Action is not dispatched on drag end, because the drag end
-            // emits the same params with the last drag move event, and
-            // may have some delay when using touch pad, which makes
-            // animation not smooth (when using debounce).
-            (!opt.isEnd || opt.removeOnClick) && this.api.dispatchAction({
-                type: 'brush',
-                brushId: modelId,
-                areas: zrUtil.clone(areas),
-                $from: modelId
-            });
+    /**
+     * @override
+     */
+    dispose: function () {
+        this._brushController.dispose();
+    },
+
+    /**
+     * @private
+     * add by eltriny
+     */
+    _onBrushSelected: function ( selectedData ) {
+        this._brushSelectData = selectedData.batch;
+    },
+
+    /**
+     * @private
+     */
+    _onBrush: function (areas, opt) {
+        var modelId = this.model.id;
+
+        // add by eltriny
+        if( opt.isClick ) {
+            return;
         }
 
-    });
+        // add by eltriny
+        // Brush Drag End 시 이벤트 발생
+        if( opt.isDragEnd ) {
+            this.api.dispatchAction(
+                {
+                    type			: 'brushDragEnd',
+                    brushId			: modelId,
+                    areas			: zrUtil.clone(areas),
+                    $from			: modelId,
+                    brushSelectData : zrUtil.clone( this._brushSelectData )
+                }
+            );
 
-    function updateController(brushModel, ecModel, api, payload) {
-        // Do not update controller when drawing.
-        (!payload || payload.$from !== brushModel.id) && this._brushController
-            .setPanels(brushModel.brushTargetManager.makePanelOpts(api))
-            .enableBrush(brushModel.brushOption)
-            .updateCovers(brushModel.areas.slice());
+            this._brushSelectData = null;
+        }
+
+        if( opt.isEnd && opt.removeOnClick ) {
+            this.api.dispatchAction( { type: 'enableTip' } );
+        }
+        else {
+            this.api.dispatchAction( { type: 'disableTip' } );
+        }
+
+        this.model.brushTargetManager.setOutputRanges(areas, this.ecModel);
+
+        // Action is not dispatched on drag end, because the drag end
+        // emits the same params with the last drag move event, and
+        // may have some delay when using touch pad, which makes
+        // animation not smooth (when using debounce).
+        (!opt.isEnd || opt.removeOnClick) && this.api.dispatchAction({
+            type: 'brush',
+            brushId: modelId,
+            areas: zrUtil.clone(areas),
+            $from: modelId
+        });
     }
 
 });
+
+function updateController(brushModel, ecModel, api, payload) {
+    // Do not update controller when drawing.
+    (!payload || payload.$from !== brushModel.id) && this._brushController
+        .setPanels(brushModel.brushTargetManager.makePanelOpts(api))
+        .enableBrush(brushModel.brushOption)
+        .updateCovers(brushModel.areas.slice());
+}
