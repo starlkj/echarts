@@ -1,9 +1,30 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import * as echarts from '../../echarts';
 import createListSimply from '../helper/createListSimply';
 import * as zrUtil from 'zrender/src/core/util';
 import * as modelUtil from '../../util/model';
 import {getPercentWithPrecision} from '../../util/number';
 import dataSelectableMixin from '../../component/helper/selectableMixin';
+import {retrieveRawAttr} from '../../data/helper/dataProvider';
+
 
 var PieSeries = echarts.extendSeriesModel({
 
@@ -19,7 +40,7 @@ var PieSeries = echarts.extendSeriesModel({
             return this.getRawData();
         };
 
-        this.updateSelectedMap(this.getRawData());
+        this.updateSelectedMap(this._createSelectableList());
 
         this._defaultLabelLine(option);
     },
@@ -28,11 +49,25 @@ var PieSeries = echarts.extendSeriesModel({
     mergeOption: function (newOption) {
         PieSeries.superCall(this, 'mergeOption', newOption);
 
-        this.updateSelectedMap(this.getRawData());
+        this.updateSelectedMap(this._createSelectableList());
     },
 
     getInitialData: function (option, ecModel) {
         return createListSimply(this, ['value']);
+    },
+
+    _createSelectableList: function () {
+        var data = this.getRawData();
+        var valueDim = data.mapDimension('value');
+        var targetList = [];
+        for (var i = 0, len = data.count(); i < len; i++) {
+            targetList.push({
+                name: data.getName(i),
+                value: data.get(valueDim, i),
+                selected: retrieveRawAttr(data, i, 'selected')
+            });
+        }
+        return targetList;
     },
 
     // Overwrite

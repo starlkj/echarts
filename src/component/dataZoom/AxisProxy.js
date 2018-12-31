@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import * as zrUtil from 'zrender/src/core/util';
 import * as numberUtil from '../../util/number';
 import * as helper from './helper';
@@ -64,11 +83,11 @@ var AxisProxy = function (dimName, axisIndex, dataZoomModel, ecModel) {
      */
     this._dataZoomModel = dataZoomModel;
 
-    /**
-     * @readOnly
-     * @private
-     */
-    this.hasSeriesStacked;
+    // /**
+    //  * @readOnly
+    //  * @private
+    //  */
+    // this.hasSeriesStacked;
 };
 
 AxisProxy.prototype = {
@@ -248,14 +267,15 @@ AxisProxy.prototype = {
         // Culculate data window and data extent, and record them.
         this._dataExtent = calculateDataExtent(this, this._dimName, targetSeries);
 
-        this.hasSeriesStacked = false;
-        each(targetSeries, function (series) {
-            var data = series.getData();
-            var dataDim = data.mapDimension(this._dimName);
-            if (data.isStacked(dataDim)) {
-                this.hasSeriesStacked = true;
-            }
-        }, this);
+        // this.hasSeriesStacked = false;
+        // each(targetSeries, function (series) {
+        // var data = series.getData();
+        // var dataDim = data.mapDimension(this._dimName);
+        // var stackedDimension = data.getCalculationInfo('stackedDimension');
+        // if (stackedDimension && stackedDimension === dataDim) {
+        // this.hasSeriesStacked = true;
+        // }
+        // }, this);
 
         var dataWindow = this.calculateDataWindow(dataZoomModel.option);
 
@@ -305,13 +325,15 @@ AxisProxy.prototype = {
         // when using toolbox#dataZoom, utill tooltip#dataZoom support "single axis
         // selection" some day, which might need "adapt to data extent on the
         // otherAxis", which is disabled by filterMode-'empty'.
-        var otherAxisModel = this.getOtherAxisModel();
-        if (dataZoomModel.get('$fromToolbox')
-            && otherAxisModel
-            && otherAxisModel.hasSeriesStacked
-        ) {
-            filterMode = 'empty';
-        }
+        // But currently, stack has been fixed to based on value but not index,
+        // so this is not an issue any more.
+        // var otherAxisModel = this.getOtherAxisModel();
+        // if (dataZoomModel.get('$fromToolbox')
+        //     && otherAxisModel
+        //     && otherAxisModel.hasSeriesStacked
+        // ) {
+        //     filterMode = 'empty';
+        // }
 
         // TODO
         // filterMode 'weakFilter' and 'empty' is not optimized for huge data yet.

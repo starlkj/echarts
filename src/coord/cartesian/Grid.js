@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 /**
  * Grid is a region which contains at most 4 cartesian systems
  *
@@ -5,20 +24,21 @@
  */
 
 import {__DEV__} from '../../config';
-import * as zrUtil from 'zrender/src/core/util';
-import BoundingRect from 'zrender/src/core/BoundingRect';
+import {isObject, each, map, indexOf, retrieve} from 'zrender/src/core/util';
 import {getLayoutRect} from '../../util/layout';
-import * as axisHelper from '../../coord/axisHelper';
+import {
+    createScaleByModel,
+    ifAxisCrossZero,
+    niceScaleExtent,
+    estimateLabelUnionRect
+} from '../../coord/axisHelper';
 import Cartesian2D from './Cartesian2D';
 import Axis2D from './Axis2D';
 import CoordinateSystem from '../../CoordinateSystem';
+import {getStackedDimension} from '../../data/helper/dataStackHelper';
 
 // Depends on GridModel, AxisModel, which performs preprocess.
 import './GridModel';
-
-var each = zrUtil.each;
-var ifAxisCrossZero = axisHelper.ifAxisCrossZero;
-var niceScaleExtent = axisHelper.niceScaleExtent;
 
 /**
  * Check if the axis is used in the specified grid
@@ -26,40 +46,6 @@ var niceScaleExtent = axisHelper.niceScaleExtent;
  */
 function isAxisUsedInTheGrid(axisModel, gridModel, ecModel) {
     return axisModel.getCoordSysModel() === gridModel;
-}
-
-function rotateTextRect(textRect, rotate) {
-  var rotateRadians = rotate * Math.PI / 180;
-  var boundingBox = textRect.plain();
-  var beforeWidth = boundingBox.width;
-  var beforeHeight = boundingBox.height;
-  var afterWidth = beforeWidth * Math.cos(rotateRadians) + beforeHeight * Math.sin(rotateRadians);
-  var afterHeight = beforeWidth * Math.sin(rotateRadians) + beforeHeight * Math.cos(rotateRadians);
-  var rotatedRect = new BoundingRect(boundingBox.x, boundingBox.y, afterWidth, afterHeight);
-
-  return rotatedRect;
-}
-
-function getLabelUnionRect(axis) {
-    var axisModel = axis.model;
-    var labels = axisModel.get('axisLabel.show') ? axisModel.getFormattedLabels() : [];
-    var axisLabelModel = axisModel.getModel('axisLabel');
-    var rect;
-    var step = 1;
-    var labelCount = labels.length;
-    if (labelCount > 40) {
-        // Simple optimization for large amount of labels
-        step = Math.ceil(labelCount / 40);
-    }
-    for (var i = 0; i < labelCount; i += step) {
-        if (!axis.isLabelIgnored(i)) {
-            var unrotatedSingleRect = axisLabelModel.getTextRect(labels[i]);
-            var singleRect = rotateTextRect(unrotatedSingleRect, axisLabelModel.get('rotate') || 0);
-
-            rect ? rect.union(singleRect) : (rect = singleRect);
-        }
-    }
-    return rect;
 }
 
 function Grid(gridModel, ecModel, api) {
@@ -127,44 +113,45 @@ gridProto.update = function (ecModel, api) {
 };
 
 function fixAxisOnZero(axesMap, otherAxisDim, axis) {
+
+    axis.getAxesOnZeroOf = function () {
+        // TODO: onZero of multiple axes.
+        return otherAxis ? [otherAxis] : [];
+    };
+
     // onZero can not be enabled in these two situations:
     // 1. When any other axis is a category axis.
     // 2. When no axis is cross 0 point.
-    var axes = axesMap[otherAxisDim];
+    var otherAxes = axesMap[otherAxisDim];
 
-    if (!axis.onZero) {
+    var otherAxis;
+    var axisModel = axis.model;
+    var onZero = axisModel.get('axisLine.onZero');
+    var onZeroAxisIndex = axisModel.get('axisLine.onZeroAxisIndex');
+
+    if (!onZero) {
         return;
     }
-
-    var onZeroAxisIndex = axis.onZeroAxisIndex;
 
     // If target axis is specified.
     if (onZeroAxisIndex != null) {
-        var otherAxis = axes[onZeroAxisIndex];
-        if (otherAxis && canNotOnZeroToAxis(otherAxis)) {
-            axis.onZero = false;
+        if (canOnZeroToAxis(otherAxes[onZeroAxisIndex])) {
+            otherAxis = otherAxes[onZeroAxisIndex];
         }
         return;
     }
 
-    for (var idx in axes) {
-        if (axes.hasOwnProperty(idx)) {
-            var otherAxis = axes[idx];
-            if (otherAxis && !canNotOnZeroToAxis(otherAxis)) {
-                onZeroAxisIndex = +idx;
-                break;
-            }
+    // Find the first available other axis.
+    for (var idx in otherAxes) {
+        if (otherAxes.hasOwnProperty(idx) && canOnZeroToAxis(otherAxes[idx])) {
+            otherAxis = otherAxes[idx];
+            break;
         }
     }
-
-    if (onZeroAxisIndex == null) {
-        axis.onZero = false;
-    }
-    axis.onZeroAxisIndex = onZeroAxisIndex;
 }
 
-function canNotOnZeroToAxis(axis) {
-    return axis.type === 'category' || axis.type === 'time' || !ifAxisCrossZero(axis);
+function canOnZeroToAxis(axis) {
+    return axis && axis.type !== 'category' && axis.type !== 'time' && ifAxisCrossZero(axis);
 }
 
 /**
@@ -190,7 +177,21 @@ gridProto.resize = function (gridModel, api, ignoreContainLabel) {
     if (!ignoreContainLabel && gridModel.get('containLabel')) {
         each(axesList, function (axis) {
             if (!axis.model.get('axisLabel.inside')) {
-                var labelUnionRect = getLabelUnionRect(axis);
+/*
+                var labelUnionRect = estimateLabelUnionRect(axis);
+                if (labelUnionRect) {
+                    var dim = axis.isHorizontal() ? 'height' : 'width';
+                    var margin = axis.model.get('axisLabel.margin');
+                    gridRect[dim] -= labelUnionRect[dim] + margin;
+                    if (axis.position === 'top') {
+                        gridRect.y += labelUnionRect.height + margin;
+                    }
+                    else if (axis.position === 'left')  {
+                        gridRect.x += labelUnionRect.width + margin;
+                    }
+                }
+*/
+                var labelUnionRect = estimateLabelUnionRect(axis);
                 if (labelUnionRect) {
                     // -- add by dolkkok - #20161220-01 : axisLabel Update --- Start
                     // -- edit by eltriny - #20180128-02
@@ -296,7 +297,7 @@ gridProto.getCartesian = function (xAxisIndex, yAxisIndex) {
         return this._coordsMap[key];
     }
 
-    if (zrUtil.isObject(xAxisIndex)) {
+    if (isObject(xAxisIndex)) {
         yAxisIndex = xAxisIndex.yAxisIndex;
         xAxisIndex = xAxisIndex.xAxisIndex;
     }
@@ -358,7 +359,7 @@ gridProto._findConvertTarget = function (ecModel, finder) {
 
     if (seriesModel) {
         cartesian = seriesModel.coordinateSystem;
-        zrUtil.indexOf(coordsList, cartesian) < 0 && (cartesian = null);
+        indexOf(coordsList, cartesian) < 0 && (cartesian = null);
     }
     else if (xAxisModel && yAxisModel) {
         cartesian = this.getCartesian(xAxisModel.componentIndex, yAxisModel.componentIndex);
@@ -472,7 +473,7 @@ gridProto._initCartesian = function (gridModel, ecModel, api) {
             axisPositionUsed[axisPosition] = true;
 
             var axis = new Axis2D(
-                axisType, axisHelper.createScaleByModel(axisModel),
+                axisType, createScaleByModel(axisModel),
                 [0, 0],
                 axisModel.get('type'),
                 axisPosition
@@ -481,9 +482,6 @@ gridProto._initCartesian = function (gridModel, ecModel, api) {
             var isCategory = axis.type === 'category';
             axis.onBand = isCategory && axisModel.get('boundaryGap');
             axis.inverse = axisModel.get('inverse');
-
-            axis.onZero = axisModel.get('axisLine.onZero');
-            axis.onZeroAxisIndex = axisModel.get('axisLine.onZeroAxisIndex');
 
             // Inject axis into axisModel
             axisModel.axis = axis;
@@ -512,7 +510,7 @@ gridProto._initCartesian = function (gridModel, ecModel, api) {
  */
 gridProto._updateScale = function (ecModel, gridModel) {
     // Reset scale
-    zrUtil.each(this._axesList, function (axis) {
+    each(this._axesList, function (axis) {
         axis.scale.setExtent(Infinity, -Infinity);
     });
     ecModel.eachSeries(function (seriesModel) {
@@ -543,7 +541,12 @@ gridProto._updateScale = function (ecModel, gridModel) {
 
     function unionExtent(data, axis, seriesModel) {
         each(data.mapDimension(axis.dim, true), function (dim) {
-            axis.scale.unionExtentFromData(data, dim);
+            axis.scale.unionExtentFromData(
+                // For example, the extent of the orginal dimension
+                // is [0.1, 0.5], the extent of the `stackResultDimension`
+                // is [7, 9], the final extent should not include [0.1, 0.5].
+                data, getStackedDimension(data, dim)
+            );
         });
     }
 };
@@ -560,8 +563,8 @@ gridProto.getTooltipAxes = function (dim) {
         var baseAxis = (dim != null && dim !== 'auto')
             ? cartesian.getAxis(dim) : cartesian.getBaseAxis();
         var otherAxis = cartesian.getOtherAxis(baseAxis);
-        zrUtil.indexOf(baseAxes, baseAxis) < 0 && baseAxes.push(baseAxis);
-        zrUtil.indexOf(otherAxes, otherAxis) < 0 && otherAxes.push(otherAxis);
+        indexOf(baseAxes, baseAxis) < 0 && baseAxes.push(baseAxis);
+        indexOf(otherAxes, otherAxis) < 0 && otherAxes.push(otherAxis);
     });
 
     return {baseAxes: baseAxes, otherAxes: otherAxes};
@@ -596,12 +599,12 @@ var axesTypes = ['xAxis', 'yAxis'];
  * @inner
  */
 function findAxesModels(seriesModel, ecModel) {
-    return zrUtil.map(axesTypes, function (axisType) {
+    return map(axesTypes, function (axisType) {
         var axisModel = seriesModel.getReferringComponents(axisType)[0];
 
         if (__DEV__) {
             if (!axisModel) {
-                throw new Error(axisType + ' "' + zrUtil.retrieve(
+                throw new Error(axisType + ' "' + retrieve(
                     seriesModel.get(axisType + 'Index'),
                     seriesModel.get(axisType + 'Id'),
                     0
@@ -648,7 +651,7 @@ Grid.create = function (ecModel, api) {
         if (__DEV__) {
             if (!gridModel) {
                 throw new Error(
-                    'Grid "' + zrUtil.retrieve(
+                    'Grid "' + retrieve(
                         xAxisModel.get('gridIndex'),
                         xAxisModel.get('gridId'),
                         0

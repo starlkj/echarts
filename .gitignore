@@ -170,5 +170,5 @@ theme/thumb
 todo
 **/*.log
 
-dist
+dist/
 

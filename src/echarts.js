@@ -1,14 +1,21 @@
-
-/*!
- * ECharts, a free, powerful charting and visualization library.
- *
- * Copyright (c) 2017, Baidu Inc.
- * All rights reserved.
- *
- * LICENSE
- * https://github.com/ecomfe/echarts/blob/master/LICENSE.txt
- */
-
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
 import {__DEV__} from './config';
 import * as zrender from 'zrender/src/zrender';
 import * as zrUtil from 'zrender/src/core/util';
@@ -21,6 +28,7 @@ import ExtensionAPI from './ExtensionAPI';
 import CoordinateSystemManager from './CoordinateSystem';
 import OptionManager from './model/OptionManager';
 import backwardCompat from './preprocessor/backwardCompat';
+import dataStack from './processor/dataStack';
 import ComponentModel from './model/Component';
 import SeriesModel from './model/Series';
 import ComponentView from './view/Component';
@@ -34,6 +42,8 @@ import loadingDefault from './loading/default';
 import Scheduler from './stream/Scheduler';
 import lightTheme from './theme/light';
 import darkTheme from './theme/dark';
+import './component/dataset';
+import mapDataStorage from './coord/geo/mapDataStorage';
 
 var assert = zrUtil.assert;
 var each = zrUtil.each;
@@ -41,10 +51,10 @@ var isFunction = zrUtil.isFunction;
 var isObject = zrUtil.isObject;
 var parseClassType = ComponentModel.parseClassType;
 
-export var version = '4.0.2';
+export var version = '4.1.0';
 
 export var dependencies = {
-    zrender: '4.0.1'
+    zrender: '4.0.4'
 };
 
 var TEST_FRAME_REMAIN_TIME = 1;
@@ -80,7 +90,6 @@ export var PRIORITY = {
 // This flag is used to carry out this rule.
 // All events will be triggered out side main process (i.e. when !this[IN_MAIN_PROCESS]).
 var IN_MAIN_PROCESS = '__flagInMainProcess';
-var HAS_GRADIENT_OR_PATTERN_BG = '__hasGradientOrPatternBg';
 var OPTION_UPDATED = '__optionUpdated';
 var ACTION_REG = /^[a-zA-Z0-9_]+$/;
 
@@ -201,20 +210,25 @@ function ECharts(dom, theme, opts) {
      */
     var api = this._api = createExtensionAPI(this);
 
+    // Sort on demand
+    function prioritySortFunc(a, b) {
+        return a.__prio - b.__prio;
+    }
+    timsort(visualFuncs, prioritySortFunc);
+    timsort(dataProcessorFuncs, prioritySortFunc);
+
     /**
      * @type {module:echarts/stream/Scheduler}
      */
-    this._scheduler = new Scheduler(this, api);
+    this._scheduler = new Scheduler(this, api, dataProcessorFuncs, visualFuncs);
 
-    Eventful.call(this);
+    Eventful.call(this, this._ecEventProcessor = makeEventProcessor(this));
 
     /**
      * @type {module:echarts~MessageCenter}
      * @private
      */
     this._messageCenter = new MessageCenter();
-
-    // this._scheduler = new Scheduler();
 
     // Init mouse events
     this._initEvents();
@@ -224,14 +238,10 @@ function ECharts(dom, theme, opts) {
 
     // Can't dispatch action during rendering procedure
     this._pendingActions = [];
-    // Sort on demand
-    function prioritySortFunc(a, b) {
-        return a.__prio - b.__prio;
-    }
-    timsort(visualFuncs, prioritySortFunc);
-    timsort(dataProcessorFuncs, prioritySortFunc);
 
     zr.animation.on('frame', this._onframe, this);
+
+    bindRenderedEvent(zr, this);
 
     // ECharts instance can be used as value.
     zrUtil.setAsPrimitive(this);
@@ -276,7 +286,7 @@ echartsProto._onframe = function () {
             scheduler.performSeriesTasks(ecModel);
 
             // Currently dataProcessorFuncs do not check threshold.
-            scheduler.performDataProcessorTasks(dataProcessorFuncs, ecModel);
+            scheduler.performDataProcessorTasks(ecModel);
 
             updateStreamModes(this, ecModel);
 
@@ -287,7 +297,7 @@ echartsProto._onframe = function () {
             // this._coordSysMgr.update(ecModel, api);
 
             // console.log('--- ec frame visual ---', remainTime);
-            scheduler.performVisualTasks(visualFuncs, ecModel);
+            scheduler.performVisualTasks(ecModel);
 
             renderSeries(this, this._model, api, 'remain');
 
@@ -295,15 +305,14 @@ echartsProto._onframe = function () {
         }
         while (remainTime > 0 && scheduler.unfinished);
 
+        // Call flush explicitly for trigger finished event.
         if (!scheduler.unfinished) {
-            this._zr && this._zr.flush();
-            this.trigger('finished');
+            this._zr.flush();
         }
         // Else, zr flushing be ensue within the same frame,
         // because zr flushing is after onframe event.
     }
 };
-
 
 /**
  * @return {HTMLElement}
@@ -351,7 +360,8 @@ function convertNewLabelOpts( labelOpts ) {
  *     silent: ...
  * });
  *
- * @param {Object} opts
+ * @param {Object} option
+ * @param {Object|boolean} [opts] opts or notMerge.
  * @param {boolean} [opts.notMerge=false]
  * @param {boolean} [opts.lazyUpdate=false] Useful when setOption frequently.
  */
@@ -396,6 +406,7 @@ echartsProto.setOption = function (opts, notMerge, lazyUpdate) {
     this[IN_MAIN_PROCESS] = true;
 
     if (!this._model || notMerge) {
+
         var optionManager = new OptionManager(this._api);
         var theme = this._theme;
         var ecModel = this._model = new GlobalModel(null, null, theme, optionManager);
@@ -833,14 +844,17 @@ echartsProto.unsetMultipleBrush = function() {
  * -- add by eltriny
  */
 echartsProto.clearBrush = function() {
-
+    this._api.dispatchAction({
+        type: 'axisAreaSelect',
+        intervals: []
+    });
     // Brush 클리어
     this._api.dispatchAction({
         type: 'brush',
+        command: 'clear',
         // Clear all areas of all brush components.
         areas: []
     });
-
 };	// func - clearBrush
 
 /**
@@ -900,11 +914,12 @@ echartsProto.getRenderedCanvas = function (opts) {
     opts.backgroundColor = opts.backgroundColor
         || this._model.get('backgroundColor');
     var zr = this._zr;
-    var list = zr.storage.getDisplayList();
+    // var list = zr.storage.getDisplayList();
     // Stop animations
-    zrUtil.each(list, function (el) {
-        el.stopAnimation(true);
-    });
+    // Never works before in init animation, so remove it.
+    // zrUtil.each(list, function (el) {
+    //     el.stopAnimation(true);
+    // });
     return zr.painter.getRenderedCanvas(opts);
 };
 
@@ -924,7 +939,7 @@ echartsProto.getSvgDataUrl = function () {
         el.stopAnimation(true);
     });
 
-    return zr.painter.pathToSvg();
+    return zr.painter.pathToDataUrl();
 };
 
 /**
@@ -1240,7 +1255,7 @@ var updateMethods = {
             return;
         }
 
-        ecModel.restoreData(payload);
+        scheduler.restoreData(ecModel, payload);
 
         scheduler.performSeriesTasks(ecModel);
 
@@ -1252,61 +1267,37 @@ var updateMethods = {
         // In LineView may save the old coordinate system and use it to get the orignal point
         coordSysMgr.create(ecModel, api);
 
-        scheduler.performDataProcessorTasks(dataProcessorFuncs, ecModel, payload);
+        scheduler.performDataProcessorTasks(ecModel, payload);
 
         // Current stream render is not supported in data process. So we can update
         // stream modes after data processing, where the filtered data is used to
         // deteming whether use progressive rendering.
         updateStreamModes(this, ecModel);
 
-        stackSeriesData(ecModel);
-
+        // We update stream modes before coordinate system updated, then the modes info
+        // can be fetched when coord sys updating (consider the barGrid extent fix). But
+        // the drawback is the full coord info can not be fetched. Fortunately this full
+        // coord is not requied in stream mode updater currently.
         coordSysMgr.update(ecModel, api);
 
         clearColorPalette(ecModel);
-        scheduler.performVisualTasks(visualFuncs, ecModel, payload);
+        scheduler.performVisualTasks(ecModel, payload);
 
         render(this, ecModel, api, payload);
 
         // Set background
         var backgroundColor = ecModel.get('backgroundColor') || 'transparent';
 
-        var painter = zr.painter;
-        // TODO all use clearColor ?
-        if (painter.isSingleCanvas && painter.isSingleCanvas()) {
-            zr.configLayer(0, {
-                clearColor: backgroundColor
-            });
+        // In IE8
+        if (!env.canvasSupported) {
+            var colorArr = colorTool.parse(backgroundColor);
+            backgroundColor = colorTool.stringify(colorArr, 'rgb');
+            if (colorArr[3] === 0) {
+                backgroundColor = 'transparent';
+            }
         }
         else {
-            // In IE8
-            if (!env.canvasSupported) {
-                var colorArr = colorTool.parse(backgroundColor);
-                backgroundColor = colorTool.stringify(colorArr, 'rgb');
-                if (colorArr[3] === 0) {
-                    backgroundColor = 'transparent';
-                }
-            }
-            if (backgroundColor.colorStops || backgroundColor.image) {
-                // Gradient background
-                // FIXME Fixed layer？
-                zr.configLayer(0, {
-                    clearColor: backgroundColor
-                });
-                this[HAS_GRADIENT_OR_PATTERN_BG] = true;
-
-                this._dom.style.background = 'transparent';
-            }
-            else {
-                if (this[HAS_GRADIENT_OR_PATTERN_BG]) {
-                    zr.configLayer(0, {
-                        clearColor: null
-                    });
-                }
-                this[HAS_GRADIENT_OR_PATTERN_BG] = false;
-
-                this._dom.style.background = backgroundColor;
-            }
+            zr.setBackgroundColor(backgroundColor);
         }
 
         performPostUpdateFuncs(ecModel, api);
@@ -1358,9 +1349,9 @@ var updateMethods = {
 
         clearColorPalette(ecModel);
         // Keep pipe to the exist pipeline because it depends on the render task of the full pipeline.
-        // this._scheduler.performVisualTasks(visualFuncs, ecModel, payload, 'layout', true);
+        // this._scheduler.performVisualTasks(ecModel, payload, 'layout', true);
         this._scheduler.performVisualTasks(
-            visualFuncs, ecModel, payload, {setDirty: true, dirtyMap: seriesDirtyMap}
+            ecModel, payload, {setDirty: true, dirtyMap: seriesDirtyMap}
         );
 
         // Currently, not call render of components. Geo render cost a lot.
@@ -1387,7 +1378,7 @@ var updateMethods = {
         clearColorPalette(ecModel);
 
         // Keep pipe to the exist pipeline because it depends on the render task of the full pipeline.
-        this._scheduler.performVisualTasks(visualFuncs, ecModel, payload, {setDirty: true});
+        this._scheduler.performVisualTasks(ecModel, payload, {setDirty: true});
 
         render(this, this._model, this._api, payload);
 
@@ -1413,7 +1404,7 @@ var updateMethods = {
         // clearColorPalette(ecModel);
 
         // // Keep pipe to the exist pipeline because it depends on the render task of the full pipeline.
-        // this._scheduler.performVisualTasks(visualFuncs, ecModel, payload, {visualType: 'visual', setDirty: true});
+        // this._scheduler.performVisualTasks(ecModel, payload, {visualType: 'visual', setDirty: true});
 
         // render(this, this._model, this._api, payload);
 
@@ -1437,8 +1428,8 @@ var updateMethods = {
         // ChartView.markUpdateMethod(payload, 'updateLayout');
 
         // // Keep pipe to the exist pipeline because it depends on the render task of the full pipeline.
-        // // this._scheduler.performVisualTasks(visualFuncs, ecModel, payload, 'layout', true);
-        // this._scheduler.performVisualTasks(visualFuncs, ecModel, payload, {setDirty: true});
+        // // this._scheduler.performVisualTasks(ecModel, payload, 'layout', true);
+        // this._scheduler.performVisualTasks(ecModel, payload, {setDirty: true});
 
         // render(this, this._model, this._api, payload);
 
@@ -1452,9 +1443,7 @@ function prepare(ecIns) {
 
     scheduler.restorePipelines(ecModel);
 
-    scheduler.prepareStageTasks(dataProcessorFuncs);
-
-    scheduler.prepareStageTasks(visualFuncs);
+    scheduler.prepareStageTasks();
 
     prepareView(ecIns, 'component', ecModel, scheduler);
 
@@ -1486,11 +1475,18 @@ function updateDirectly(ecIns, method, payload, mainType, subType) {
     var condition = {mainType: mainType, query: query};
     subType && (condition.subType = subType); // subType may be '' by parseClassType;
 
+    var excludeSeriesId = payload.excludeSeriesId;
+    if (excludeSeriesId != null) {
+        excludeSeriesId = zrUtil.createHashMap(modelUtil.normalizeToArray(excludeSeriesId));
+    }
+
     // If dispatchAction before setOption, do nothing.
-    ecModel && ecModel.eachComponent(condition, function (model, index) {
-        callView(ecIns[
-            mainType === 'series' ? '_chartsMap' : '_componentsMap'
-        ][model.__viewId]);
+    ecModel && ecModel.eachComponent(condition, function (model) {
+        if (!excludeSeriesId || excludeSeriesId.get(model.id) == null) {
+            callView(ecIns[
+                mainType === 'series' ? '_chartsMap' : '_componentsMap'
+            ][model.__viewId]);
+        }
     }, ecIns);
 
     function callView(view) {
@@ -1525,21 +1521,19 @@ echartsProto.resize = function (opts) {
 
     var optionChanged = ecModel.resetOption('media');
 
-    refresh(this, optionChanged, opts && opts.silent);
+    var silent = opts && opts.silent;
+
+    this[IN_MAIN_PROCESS] = true;
+
+    optionChanged && prepare(this);
+    updateMethods.update.call(this);
+
+    this[IN_MAIN_PROCESS] = false;
+
+    flushPendingActions.call(this, silent);
+
+    triggerUpdatedEvent.call(this, silent);
 };
-
-function refresh(ecIns, needPrepare, silent) {
-    ecIns[IN_MAIN_PROCESS] = true;
-
-    needPrepare && prepare(ecIns);
-    updateMethods.update.call(ecIns);
-
-    ecIns[IN_MAIN_PROCESS] = false;
-
-    flushPendingActions.call(ecIns, silent);
-
-    triggerUpdatedEvent.call(ecIns, silent);
-}
 
 function updateStreamModes(ecIns, ecModel) {
     var chartsMap = ecIns._chartsMap;
@@ -1734,6 +1728,41 @@ function triggerUpdatedEvent(silent) {
 }
 
 /**
+ * Event `rendered` is triggered when zr
+ * rendered. It is useful for realtime
+ * snapshot (reflect animation).
+ *
+ * Event `finished` is triggered when:
+ * (1) zrender rendering finished.
+ * (2) initial animation finished.
+ * (3) progressive rendering finished.
+ * (4) no pending action.
+ * (5) no delayed setOption needs to be processed.
+ */
+function bindRenderedEvent(zr, ecIns) {
+    zr.on('rendered', function () {
+
+        ecIns.trigger('rendered');
+
+        // The `finished` event should not be triggered repeatly,
+        // so it should only be triggered when rendering indeed happend
+        // in zrender. (Consider the case that dipatchAction is keep
+        // triggering when mouse move).
+        if (
+            // Although zr is dirty if initial animation is not finished
+            // and this checking is called on frame, we also check
+            // animation finished for robustness.
+            zr.animation.isFinished()
+            && !ecIns[OPTION_UPDATED]
+            && !ecIns._scheduler.unfinished
+            && !ecIns._pendingActions.length
+        ) {
+            ecIns.trigger('finished');
+        }
+    });
+}
+
+/**
  * @param {Object} params
  * @param {number} params.seriesIndex
  * @param {Array|TypedArray} params.data
@@ -1748,6 +1777,14 @@ echartsProto.appendData = function (params) {
     }
 
     seriesModel.appendData(params);
+
+    // Note: `appendData` does not support that update extent of coordinate
+    // system, util some scenario require that. In the expected usage of
+    // `appendData`, the initial extent of coordinate system should better
+    // be fixed by axis `min`/`max` setting or initial data, otherwise if
+    // the extent changed while `appendData`, the location of the painted
+    // graphic elements have to be changed, which make the usage of
+    // `appendData` meaningless.
 
     this._scheduler.unfinished = true;
 };
@@ -1827,25 +1864,6 @@ function prepareView(ecIns, type, ecModel, scheduler) {
             i++;
         }
     }
-}
-
-/**
- * @private
- */
-function stackSeriesData(ecModel) {
-    var stackedDataMap = {};
-    ecModel.eachSeries(function (series) {
-        var stack = series.get('stack');
-        var data = series.getData();
-        if (stack && data.type === 'list') {
-            var previousStack = stackedDataMap[stack];
-            // Avoid conflict with Object.prototype
-            if (stackedDataMap.hasOwnProperty(stack) && previousStack) {
-                data.stackedOn = previousStack;
-            }
-            stackedDataMap[stack] = data;
-        }
-    });
 }
 
 // /**
@@ -1989,8 +2007,10 @@ echartsProto._initEvents = function () {
             }
             // -- add by dolkkok - #20161209-01 : 데이터가 아닌 차트영역을 선택했을때 처리 --- End
 
+            var isGlobalOut = eveName === 'globalout';
+
             // no e.target when 'globalout'.
-            if (eveName === 'globalout') {
+            if (isGlobalOut) {
                 params = {};
             }
             else if (el && el.dataIndex != null) {
@@ -2003,8 +2023,30 @@ echartsProto._initEvents = function () {
             }
 
             if (params) {
+                var componentType = params.componentType;
+                var componentIndex = params[componentType + 'Index'];
+                var model = componentType && componentIndex != null
+                    && ecModel.getComponent(componentType, componentIndex);
+                var view = model && this[
+                    model.mainType === 'series' ? '_chartsMap' : '_componentsMap'
+                ][model.__viewId];
+
+                if (__DEV__) {
+                    // `event.componentType` and `event[componentTpype + 'Index']` must not
+                    // be missed, otherwise there is no way to distinguish source component.
+                    // See `dataFormat.getDataParams`.
+                    zrUtil.assert(isGlobalOut || (model && view));
+                }
+
                 params.event = e;
                 params.type = eveName;
+
+                var ecEventProcessor = this._ecEventProcessor;
+                ecEventProcessor.targetEl = el;
+                ecEventProcessor.packedEvent = params;
+                ecEventProcessor.model = model;
+                ecEventProcessor.view = view;
+
                 this.trigger(eveName, params);
             }
 
@@ -2146,6 +2188,108 @@ function createExtensionAPI(ecInstance) {
 }
 
 /**
+ * Usage of query:
+ * `chart.on('click', query, handler);`
+ * The `query` can be:
+ * + The component type query string, only `mainType` or `mainType.subType`,
+ *   like: 'xAxis', 'series', 'xAxis.category' or 'series.line'.
+ * + The component query object, like:
+ *   `{seriesIndex: 2}`, `{seriesName: 'xx'}`, `{seriesId: 'some'}`,
+ *   `{xAxisIndex: 2}`, `{xAxisName: 'xx'}`, `{xAxisId: 'some'}`.
+ * + The element query object, like:
+ *   `{targetName: 'some'}` (only available in custom series).
+ *
+ * Caveat: If a prop in the `query` object is `null/undefined`, it is the
+ * same as there is no such prop in the `query` object.
+ */
+function makeEventProcessor(ecIns) {
+    return {
+
+        normalizeQuery: function (query) {
+            var cptQuery = {};
+            var dataQuery = {};
+            var otherQuery = {};
+
+            // `query` is `mainType` or `mainType.subType` of component.
+            if (zrUtil.isString(query)) {
+                var condCptType = parseClassType(query);
+                // `.main` and `.sub` may be ''.
+                cptQuery.mainType = condCptType.main || null;
+                cptQuery.subType = condCptType.sub || null;
+            }
+            // `query` is an object, convert to {mainType, index, name, id}.
+            else {
+                // `xxxIndex`, `xxxName`, `xxxId`, `name`, `dataIndex`, `dataType` is reserved,
+                // can not be used in `compomentModel.filterForExposedEvent`.
+                var suffixes = ['Index', 'Name', 'Id'];
+                var dataKeys = {name: 1, dataIndex: 1, dataType: 1};
+                zrUtil.each(query, function (val, key) {
+                    var reserved;
+                    for (var i = 0; i < suffixes.length; i++) {
+                        var propSuffix = suffixes[i];
+                        var suffixPos = key.lastIndexOf(propSuffix);
+                        if (suffixPos > 0 && suffixPos === key.length - propSuffix.length) {
+                            var mainType = key.slice(0, suffixPos);
+                            // Consider `dataIndex`.
+                            if (mainType !== 'data') {
+                                cptQuery.mainType = mainType;
+                                cptQuery[propSuffix.toLowerCase()] = val;
+                                reserved = true;
+                            }
+                        }
+                    }
+                    if (dataKeys.hasOwnProperty(key)) {
+                        dataQuery[key] = val;
+                        reserved = true;
+                    }
+                    if (!reserved) {
+                        otherQuery[key] = val;
+                    }
+                });
+            }
+
+            return {
+                cptQuery: cptQuery,
+                dataQuery: dataQuery,
+                otherQuery: otherQuery
+            };
+        },
+
+        filter: function (eventType, query, args) {
+            // They should be assigned before each trigger call.
+            var targetEl = this.targetEl;
+            var packedEvent = this.packedEvent;
+            var model = this.model;
+            var view = this.view;
+
+            // For event like 'globalout'.
+            if (!model || !view) {
+                return true;
+            }
+
+            var cptQuery = query.cptQuery;
+            var dataQuery = query.dataQuery;
+
+            return check(cptQuery, model, 'mainType')
+                && check(cptQuery, model, 'subType')
+                && check(cptQuery, model, 'index', 'componentIndex')
+                && check(cptQuery, model, 'name')
+                && check(cptQuery, model, 'id')
+                && check(dataQuery, packedEvent, 'name')
+                && check(dataQuery, packedEvent, 'dataIndex')
+                && check(dataQuery, packedEvent, 'dataType')
+                && (!view.filterForExposedEvent || view.filterForExposedEvent(
+                    eventType, query.otherQuery, targetEl, packedEvent
+                ));
+        }
+    };
+
+    function check(query, host, prop, propOnHost) {
+        return query[prop] == null || host[propOnHost || prop] === query[prop];
+    }
+}
+
+/**
  * @type {Object} key: actionType.
  * @inner
  */
@@ -2198,8 +2342,6 @@ var connectedGroups = {};
 var idBase = new Date() - 0;
 var groupIdBase = new Date() - 0;
 var DOM_ATTRIBUTE_KEY = '_echarts_instance_';
-
-var mapDataStores = {};
 
 function enableConnect(chart) {
     var STATUS_PENDING = 0;
@@ -2594,10 +2736,10 @@ export function setCanvasCreator(creator) {
 
 /**
  * @param {string} mapName
- * @param {Object|string} geoJson
+ * @param {Array.<Object>|Object|string} geoJson
  * @param {Object} [specialAreas]
  *
- * @example
+ * @example GeoJSON
  *     $.get('USA.json', function (geoJson) {
  *         echarts.registerMap('USA', geoJson);
  *         // Or
@@ -2606,20 +2748,20 @@ export function setCanvasCreator(creator) {
  *             specialAreas: {}
  *         })
  *     });
+ *
+ *     $.get('airport.svg', function (svg) {
+ *         echarts.registerMap('airport', {
+ *             svg: svg
+ *         }
+ *     });
+ *
+ *     echarts.registerMap('eu', [
+ *         {svg: eu-topographic.svg},
+ *         {geoJSON: eu.json}
+ *     ])
  */
 export function registerMap(mapName, geoJson, specialAreas) {
-    if (geoJson.geoJson && !geoJson.features) {
-        specialAreas = geoJson.specialAreas;
-        geoJson = geoJson.geoJson;
-    }
-    if (typeof geoJson === 'string') {
-        geoJson = (typeof JSON !== 'undefined' && JSON.parse)
-            ? JSON.parse(geoJson) : (new Function('return (' + geoJson + ');'))();
-    }
-    mapDataStores[mapName] = {
-        geoJson: geoJson,
-        specialAreas: specialAreas
-    };
+    mapDataStorage.registerMap(mapName, geoJson, specialAreas);
 }
 
 /**
@@ -2627,11 +2769,17 @@ export function registerMap(mapName, geoJson, specialAreas) {
  * @return {Object}
  */
 export function getMap(mapName) {
-    return mapDataStores[mapName];
+    // For backward compatibility, only return the first one.
+    var records = mapDataStorage.retrieveMap(mapName);
+    return records && records[0] && {
+        geoJson: records[0].geoJSON,
+        specialAreas: records[0].specialAreas
+    };
 }
 
 registerVisual(PRIORITY_VISUAL_GLOBAL, seriesColor);
 registerPreprocessor(backwardCompat);
+registerProcessor(PRIORITY_PROCESSOR_STATISTIC, dataStack);
 registerLoading('default', loadingDefault);
 
 // Default actions

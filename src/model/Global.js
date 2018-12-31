@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 /**
  * ECharts global model
  *
@@ -40,8 +59,6 @@ var OPTION_INNER_KEY = '\0_ec_inner';
  * @param {Object} theme
  */
 var GlobalModel = Model.extend({
-
-    constructor: GlobalModel,
 
     init: function (option, parentModel, theme, optionManager) {
         theme = theme || {};
@@ -191,6 +208,7 @@ var GlobalModel = Model.extend({
                     componentModel.optionUpdated({}, false);
                 }
                 else {
+
                     var ComponentModelClass = ComponentModel.getClass(
                         mainType, resultItem.keyInfo.subType, true
                     );
@@ -473,6 +491,9 @@ var GlobalModel = Model.extend({
     },
 
     /**
+     * Get series list before filtered by type.
+     * FIXME: rename to getRawSeriesByType?
+     *
      * @param {string} subType
      * @return {Array.<module:echarts/model/Series>}
      */
@@ -617,7 +638,14 @@ function isNotTargetSeries(seriesModel, payload) {
  * @inner
  */
 function mergeTheme(option, theme) {
+    // PENDING
+    // NOT use `colorLayer` in theme if option has `color`
+    var notMergeColorLayer = option.color && !option.colorLayer;
+
     each(theme, function (themeItem, name) {
+        if (name === 'colorLayer' && notMergeColorLayer) {
+            return;
+        }
         // 如果有 component model 则把具体的 merge 逻辑交给该 model 处理
         if (!ComponentModel.hasClass(name)) {
             if (typeof themeItem === 'object') {

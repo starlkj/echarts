@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import * as zrUtil from 'zrender/src/core/util';
 import List from '../../data/List';
 import createDimensions from '../../data/helper/createDimensions';
@@ -7,12 +26,17 @@ import {getDataItemValue} from '../../util/model';
 import CoordinateSystem from '../../CoordinateSystem';
 import {getCoordSysDefineBySeries} from '../../model/referHelper';
 import Source from '../../data/Source';
+import {enableDataStack} from '../../data/helper/dataStackHelper';
 
 /**
  * @param {module:echarts/data/Source|Array} source Or raw data.
  * @param {module:echarts/model/Series} seriesModel
+ * @param {Object} [opt]
+ * @param {string} [opt.generateCoord]
  */
-function createListFromArray(source, seriesModel) {
+function createListFromArray(source, seriesModel, opt) {
+    opt = opt || {};
+
     if (!Source.isInstance(source)) {
         source = Source.seriesDataToSource(source);
     }
@@ -31,7 +55,7 @@ function createListFromArray(source, seriesModel) {
             if (axisModel) {
                 var axisType = axisModel.get('type');
                 dimInfo.type = getDimensionTypeByAxis(axisType);
-                dimInfo.stackable = isStackable(axisType);
+                // dimInfo.stackable = isStackable(axisType);
             }
             return dimInfo;
         });
@@ -47,7 +71,8 @@ function createListFromArray(source, seriesModel) {
     }
 
     var dimInfoList = createDimensions(source, {
-        coordDimensions: coordSysDimDefs
+        coordDimensions: coordSysDimDefs,
+        generateCoord: opt.generateCoord
     });
 
     var firstCategoryDimIndex;
@@ -69,7 +94,11 @@ function createListFromArray(source, seriesModel) {
         dimInfoList[firstCategoryDimIndex].otherDims.itemName = 0;
     }
 
+    var stackCalculationInfo = enableDataStack(seriesModel, dimInfoList);
+
     var list = new List(dimInfoList, seriesModel);
+
+    list.setCalculationInfo(stackCalculationInfo);
 
     var dimValueGetter = (firstCategoryDimIndex != null && isNeedCompleteOrdinalData(source))
         ? function (itemOpt, dimName, dataIndex, dimIndex) {
@@ -84,10 +113,6 @@ function createListFromArray(source, seriesModel) {
     list.initData(source, null, dimValueGetter);
 
     return list;
-}
-
-function isStackable(axisType) {
-    return axisType !== 'category' && axisType !== 'time';
 }
 
 function isNeedCompleteOrdinalData(source) {

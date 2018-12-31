@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import {each, createHashMap, assert} from 'zrender/src/core/util';
 import { __DEV__ } from '../../config';
 
@@ -8,8 +27,9 @@ export var OTHER_DIMENSIONS = createHashMap([
 export function summarizeDimensions(data) {
     var summary = {};
     var encode = summary.encode = {};
-    var coordDimMap = summary.coordDimMap = createHashMap();
+    var notExtraCoordDimMap = createHashMap();
     var defaultedLabel = [];
+    var defaultedTooltip = [];
 
     each(data.dimensions, function (dimName) {
         var dimItem = data.getDimensionInfo(dimName);
@@ -25,14 +45,20 @@ export function summarizeDimensions(data) {
             }
             coordDimArr[dimItem.coordDimIndex] = dimName;
 
-            if (dimItem.isSysCoord && mayLabelDimType(dimItem.type)) {
-                // Use the last coord dim (and label friendly) as default label,
-                // because both show x, y on label is not look good, and usually
-                // y axis is more focusd conventionally.
-                defaultedLabel[0] = dimName;
-            }
+            if (!dimItem.isExtraCoord) {
+                notExtraCoordDimMap.set(coordDim, 1);
 
-            coordDimMap.set(coordDim, 1);
+                // Use the last coord dim (and label friendly) as default label,
+                // because when dataset is used, it is hard to guess which dimension
+                // can be value dimension. If both show x, y on label is not look good,
+                // and conventionally y axis is focused more.
+                if (mayLabelDimType(dimItem.type)) {
+                    defaultedLabel[0] = dimName;
+                }
+            }
+            if (dimItem.defaultTooltip) {
+                defaultedTooltip.push(dimName);
+            }
         }
 
         OTHER_DIMENSIONS.each(function (v, otherDim) {
@@ -49,10 +75,21 @@ export function summarizeDimensions(data) {
     });
 
     var dataDimsOnCoord = [];
-    coordDimMap.each(function (v, coordDim) {
-        dataDimsOnCoord = dataDimsOnCoord.concat(encode[coordDim]);
+    var encodeFirstDimNotExtra = {};
+
+    notExtraCoordDimMap.each(function (v, coordDim) {
+        var dimArr = encode[coordDim];
+        // ??? FIXME extra coord should not be set in dataDimsOnCoord.
+        // But should fix the case that radar axes: simplify the logic
+        // of `completeDimension`, remove `extraPrefix`.
+        encodeFirstDimNotExtra[coordDim] = dimArr[0];
+        // Not necessary to remove duplicate, because a data
+        // dim canot on more than one coordDim.
+        dataDimsOnCoord = dataDimsOnCoord.concat(dimArr);
     });
+
     summary.dataDimsOnCoord = dataDimsOnCoord;
+    summary.encodeFirstDimNotExtra = encodeFirstDimNotExtra;
 
     var encodeLabel = encode.label;
     // FIXME `encode.label` is not recommanded, because formatter can not be set
@@ -61,10 +98,12 @@ export function summarizeDimensions(data) {
         defaultedLabel = encodeLabel.slice();
     }
 
-    var defaultedTooltip = defaultedLabel.slice();
     var encodeTooltip = encode.tooltip;
     if (encodeTooltip && encodeTooltip.length) {
         defaultedTooltip = encodeTooltip.slice();
+    }
+    else if (!defaultedTooltip.length) {
+        defaultedTooltip = defaultedLabel.slice();
     }
 
     encode.defaultedLabel = defaultedLabel;

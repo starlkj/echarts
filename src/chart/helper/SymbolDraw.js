@@ -1,9 +1,29 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 /**
  * @module echarts/chart/helper/SymbolDraw
  */
 
 import * as graphic from '../../util/graphic';
 import SymbolClz from './Symbol';
+import { isObject } from 'zrender/src/core/util';
 
 /**
  * @constructor
@@ -18,17 +38,26 @@ function SymbolDraw(symbolCtor) {
 
 var symbolDrawProto = SymbolDraw.prototype;
 
-function symbolNeedsDraw(data, point, idx, isIgnore) {
+function symbolNeedsDraw(data, point, idx, opt) {
     return point && !isNaN(point[0]) && !isNaN(point[1])
-        && !(isIgnore && isIgnore(idx))
+        && !(opt.isIgnore && opt.isIgnore(idx))
+        // We do not set clipShape on group, because it will cut part of
+        // the symbol element shape. We use the same clip shape here as
+        // the line clip.
+        && !(opt.clipShape && !opt.clipShape.contain(point[0], point[1]))
         && data.getItemVisual(idx, 'symbol') !== 'none';
 }
+
 /**
  * Update symbols draw by new data
  * @param {module:echarts/data/List} data
- * @param {Array.<boolean>} [isIgnore]
+ * @param {Object} [opt] Or isIgnore
+ * @param {Function} [opt.isIgnore]
+ * @param {Object} [opt.clipShape]
  */
-symbolDrawProto.updateData = function (data, isIgnore) {
+symbolDrawProto.updateData = function (data, opt) {
+    opt = normalizeUpdateOpt(opt);
+
     var group = this.group;
     var seriesModel = data.hostModel;
     var oldData = this._data;
@@ -45,7 +74,7 @@ symbolDrawProto.updateData = function (data, isIgnore) {
     data.diff(oldData)
         .add(function (newIdx) {
             var point = data.getItemLayout(newIdx);
-            if (symbolNeedsDraw(data, point, newIdx, isIgnore)) {
+            if (symbolNeedsDraw(data, point, newIdx, opt)) {
                 var symbolEl = new SymbolCtor(data, newIdx, seriesScope);
                 symbolEl.attr('position', point);
                 data.setItemGraphicEl(newIdx, symbolEl);
@@ -55,7 +84,7 @@ symbolDrawProto.updateData = function (data, isIgnore) {
         .update(function (newIdx, oldIdx) {
             var symbolEl = oldData.getItemGraphicEl(oldIdx);
             var point = data.getItemLayout(newIdx);
-            if (!symbolNeedsDraw(data, point, newIdx, isIgnore)) {
+            if (!symbolNeedsDraw(data, point, newIdx, opt)) {
                 group.remove(symbolEl);
                 return;
             }
@@ -107,7 +136,15 @@ symbolDrawProto.incrementalPrepareUpdate = function (data) {
     this.group.removeAll();
 };
 
-symbolDrawProto.incrementalUpdate = function (taskParams, data, isIgnore) {
+/**
+ * Update symbols draw by new data
+ * @param {module:echarts/data/List} data
+ * @param {Object} [opt] Or isIgnore
+ * @param {Function} [opt.isIgnore]
+ * @param {Object} [opt.clipShape]
+ */
+symbolDrawProto.incrementalUpdate = function (taskParams, data, opt) {
+    opt = normalizeUpdateOpt(opt);
 
     function updateIncrementalAndHover(el) {
         if (!el.isGroup) {
@@ -116,7 +153,7 @@ symbolDrawProto.incrementalUpdate = function (taskParams, data, isIgnore) {
     }
     for (var idx = taskParams.start; idx < taskParams.end; idx++) {
         var point = data.getItemLayout(idx);
-        if (symbolNeedsDraw(data, point, idx, isIgnore)) {
+        if (symbolNeedsDraw(data, point, idx, opt)) {
             var el = new this._symbolCtor(data, idx, this._seriesScope);
             el.traverse(updateIncrementalAndHover);
             el.attr('position', point);
@@ -126,20 +163,26 @@ symbolDrawProto.incrementalUpdate = function (taskParams, data, isIgnore) {
     }
 };
 
+function normalizeUpdateOpt(opt) {
+    if (opt != null && !isObject(opt)) {
+        opt = {isIgnore: opt};
+    }
+    return opt || {};
+}
+
 symbolDrawProto.remove = function (enableAnimation) {
     var group = this.group;
     var data = this._data;
-    if (data) {
-        if (enableAnimation) {
-            data.eachItemGraphicEl(function (el) {
-                el.fadeOut(function () {
-                    group.remove(el);
-                });
+    // Incremental model do not have this._data.
+    if (data && enableAnimation) {
+        data.eachItemGraphicEl(function (el) {
+            el.fadeOut(function () {
+                group.remove(el);
             });
-        }
-        else {
-            group.removeAll();
-        }
+        });
+    }
+    else {
+        group.removeAll();
     }
 };
 

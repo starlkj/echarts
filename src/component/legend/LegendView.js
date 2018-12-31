@@ -1,9 +1,28 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import {__DEV__} from '../../config';
 import * as echarts from '../../echarts';
 import * as zrUtil from 'zrender/src/core/util';
 import {createSymbol} from '../../util/symbol';
 import * as graphic from '../../util/graphic';
-import {layout, makeBackground} from '../helper/listComponent';
+import {makeBackground} from '../helper/listComponent';
 import * as layoutUtil from '../../util/layout';
 
 var curry = zrUtil.curry;
@@ -124,19 +143,23 @@ export default echarts.extendComponentView({
         var legendDrawnMap = zrUtil.createHashMap();
         var selectMode = legendModel.get('selectedMode');
 
+        var excludeSeriesId = [];
+        ecModel.eachRawSeries(function (seriesModel) {
+            !seriesModel.get('legendHoverLink') && excludeSeriesId.push(seriesModel.id);
+        });
+
         each(legendModel.getData(), function (itemModel, dataIndex) {
             var name = itemModel.get('name');
 
-            // edit by eltriny - #20180222-01
             // Use empty string or \n as a newline string
-            if (!this.newlineDisabled && name === '\n') {
+            if (!this.newlineDisabled && (name === '' || name === '\n')) {
                 contentGroup.add(new Group({
                     newline: true
                 }));
                 return;
             }
-            // edit by eltriny - #20180222-01
 
+            // Representitive series.
             var seriesModel = ecModel.getSeriesByName(name)[0];
 
             if (legendDrawnMap.get(name)) {
@@ -145,8 +168,7 @@ export default echarts.extendComponentView({
             }
 
             // Series legend
-            // -- add by dolkkok - #20161223-01 : seriesSync check추가
-            if (seriesModel && legendModel.get('seriesSync')) {
+            if (seriesModel && legendModel.get('seriesSync')) {     // -- add by dolkkok - #20161223-01 : seriesSync check추가
                 var data = seriesModel.getData();
                 var color = data.getVisual('color');
 
@@ -168,8 +190,8 @@ export default echarts.extendComponentView({
                 );
 
                 itemGroup.on('click', curry(dispatchSelectAction, name, api))
-                    .on('mouseover', curry(dispatchHighlightAction, seriesModel, null, api))
-                    .on('mouseout', curry(dispatchDownplayAction, seriesModel, null, api));
+                    .on('mouseover', curry(dispatchHighlightAction, seriesModel, null, api, excludeSeriesId))
+                    .on('mouseout', curry(dispatchDownplayAction, seriesModel, null, api, excludeSeriesId));
 
                 legendDrawnMap.set(name, true);
             }
@@ -201,6 +223,7 @@ export default echarts.extendComponentView({
                     if (legendDrawnMap.get(name)) {
                         return;
                     }
+
                     if (seriesModel.legendDataProvider) {
                         // -- add by dolkkok - #20170630-01 : 이미 등록된 범례항목인지 체크(pie) 후 생성 --- start
                         if(legendDrawnMap[name]) {
@@ -214,7 +237,7 @@ export default echarts.extendComponentView({
 
                         var color = data.getItemVisual(idx, 'color');
 
-                        var legendSymbolType = legendModel.get('symbol') || 'roundRect';
+                        var legendSymbolType = 'roundRect';
 
                         var itemGroup = this._createItem(
                             name, dataIndex, itemModel, legendModel,
@@ -223,13 +246,15 @@ export default echarts.extendComponentView({
                             selectMode
                         );
 
+                        // FIXME: consider different series has items with the same name.
                         itemGroup.on('click', curry(dispatchSelectAction, name, api))
                         // FIXME Should not specify the series name
-                            .on('mouseover', curry(dispatchHighlightAction, seriesModel, name, api))
-                            .on('mouseout', curry(dispatchDownplayAction, seriesModel, name, api));
+                            .on('mouseover', curry(dispatchHighlightAction, seriesModel, name, api, excludeSeriesId))
+                            .on('mouseout', curry(dispatchDownplayAction, seriesModel, name, api, excludeSeriesId));
 
                         legendDrawnMap.set(name, true);
                     }
+
                 }, this);
             }
 
@@ -354,12 +379,15 @@ export default echarts.extendComponentView({
         // makeBackground(this.group, legendModel);
     },
 
-    _createItem: function (name, dataIndex, itemModel, legendModel,
-                           legendSymbolType, symbolType,
-                           itemAlign, color, selectMode) {
+    _createItem: function (
+        name, dataIndex, itemModel, legendModel,
+        legendSymbolType, symbolType,
+        itemAlign, color, selectMode
+    ) {
         var itemWidth = legendModel.get('itemWidth');
         var itemHeight = legendModel.get('itemHeight');
         var inactiveColor = legendModel.get('inactiveColor');
+        var symbolKeepAspect = legendModel.get('symbolKeepAspect');
 
         var isSelected = legendModel.isSelected(name);
         var itemGroup = new Group();
@@ -371,21 +399,24 @@ export default echarts.extendComponentView({
         var tooltipModel = itemModel.getModel('tooltip');
         var legendGlobalTooltipModel = tooltipModel.parentModel;
 
-        // Use user given icon first
-        // -- add by dolkkok
+        // -- add by dolkkok - S
         // #201710804-01 : 범례 영역 중앙에 위치하도록 조정
         var legendHeight = legendModel.get('height') || 30;
         legendHeight -= legendModel.get('padding') * 2;
         var itemY = (legendHeight - itemHeight) / 2;
+        // -- add by dolkkok - E
+
+        // Use user given icon first
         legendSymbolType = itemIcon || legendSymbolType;
         itemGroup.add(createSymbol(
             legendSymbolType,
             0,
-            itemY,
+            0,
             itemWidth,
             itemHeight,
             isSelected ? color : inactiveColor,
-            true
+            // symbolKeepAspect default true for legend
+            symbolKeepAspect == null ? true : symbolKeepAspect
         ));
 
         // Compose symbols
@@ -400,8 +431,14 @@ export default echarts.extendComponentView({
             }
             // Put symbol in the center
             itemGroup.add(createSymbol(
-                symbolType, (itemWidth - size) / 2, (itemHeight - size) / 2, size, size,
-                isSelected ? color : inactiveColor
+                symbolType,
+                (itemWidth - size) / 2,
+                (itemHeight - size) / 2,
+                size,
+                size,
+                isSelected ? color : inactiveColor,
+                // symbolKeepAspect default true for legend
+                symbolKeepAspect == null ? true : symbolKeepAspect
             ));
         }
 
@@ -417,6 +454,21 @@ export default echarts.extendComponentView({
             content = formatter(name);
         }
 
+/*
+        itemGroup.add(new graphic.Text({
+            style: graphic.setTextStyle({}, textStyleModel, {
+                text: content,
+                x: textX,
+                y: itemHeight / 2,
+                textFill: isSelected ? textStyleModel.getTextColor() : inactiveColor,
+                textAlign: textAlign,
+                textVerticalAlign: 'middle'
+            })
+        }));
+*/
+
+        // -- add by dolkkok - S
+        // #201710804-01 : 범례 영역 중앙에 위치하도록 조정
         var text = new graphic.Text({
             style: graphic.setTextStyle({}, textStyleModel, {
                 text: content,
@@ -427,10 +479,9 @@ export default echarts.extendComponentView({
                 textVerticalAlign: 'middle'
             })
         });
-        // -- add by dolkkok
-        // #201710804-01 : 범례 영역 중앙에 위치하도록 조정
         text.style.y += (itemHeight - text.getBoundingRect().height);
         itemGroup.add(text);
+        // -- add by dolkkok - E
 
         // Add a invisible rect to increase the area of mouse hover
         var hitRect = new graphic.Rect({
@@ -527,26 +578,28 @@ function dispatchSelectAction(name, api) {
     });
 }
 
-function dispatchHighlightAction(seriesModel, dataName, api) {
+function dispatchHighlightAction(seriesModel, dataName, api, excludeSeriesId) {
     // If element hover will move to a hoverLayer.
     var el = api.getZr().storage.getDisplayList()[0];
     if (!(el && el.useHoverLayer)) {
-        seriesModel.get('legendHoverLink') && api.dispatchAction({
+        api.dispatchAction({
             type: 'highlight',
             seriesName: seriesModel.name,
-            name: dataName
+            name: dataName,
+            excludeSeriesId: excludeSeriesId
         });
     }
 }
 
-function dispatchDownplayAction(seriesModel, dataName, api) {
+function dispatchDownplayAction(seriesModel, dataName, api, excludeSeriesId) {
     // If element hover will move to a hoverLayer.
     var el = api.getZr().storage.getDisplayList()[0];
     if (!(el && el.useHoverLayer)) {
-        seriesModel.get('legendHoverLink') && api.dispatchAction({
+        api.dispatchAction({
             type: 'downplay',
             seriesName: seriesModel.name,
-            name: dataName
+            name: dataName,
+            excludeSeriesId: excludeSeriesId
         });
     }
 }

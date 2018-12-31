@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import * as zrUtil from 'zrender/src/core/util';
 import * as graphic from '../../util/graphic';
 
@@ -23,6 +42,8 @@ function SunburstPiece(node, seriesModel, ecModel) {
     var sector = new graphic.Sector({
         z2: DEFAULT_SECTOR_Z
     });
+    sector.seriesIndex = seriesModel.seriesIndex;
+
     var text = new graphic.Text({
         z2: DEFAULT_TEXT_Z,
         silent: node.getModel('label').get('silent')
@@ -65,6 +86,9 @@ SunburstPieceProto.updateData = function (
 
     var itemModel = node.getModel();
     var layout = node.getLayout();
+    if (!layout) {
+        console.log(node.getLayout());
+    }
     var sectorShape = zrUtil.extend({}, layout);
     sectorShape.label = null;
 
@@ -185,6 +209,18 @@ SunburstPieceProto._updateLabel = function (seriesModel, visualColor, state) {
         text = '';
     }
 
+    var layout = this.node.getLayout();
+    var labelMinAngle = labelModel.get('minAngle');
+    if (labelMinAngle == null) {
+        labelMinAngle = normalModel.get('minAngle');
+    }
+    labelMinAngle = labelMinAngle / 180 * Math.PI;
+    var angle = layout.endAngle - layout.startAngle;
+    if (labelMinAngle != null && Math.abs(angle) < labelMinAngle) {
+        // Not displaying text when angle is too small
+        text = '';
+    }
+
     var label = this.childAt(1);
 
     graphic.setLabelStyle(
@@ -196,7 +232,6 @@ SunburstPieceProto._updateLabel = function (seriesModel, visualColor, state) {
         }
     );
 
-    var layout = this.node.getLayout();
     var midAngle = (layout.startAngle + layout.endAngle) / 2;
     var dx = Math.cos(midAngle);
     var dy = Math.sin(midAngle);

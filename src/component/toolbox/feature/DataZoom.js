@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import * as echarts from '../../../echarts';
 import * as zrUtil from 'zrender/src/core/util';
 import BrushController from '../../helper/BrushController';
@@ -200,22 +219,22 @@ proto._onBrush = function (areas, opt) {
             var rangePercentEnd = ( percentRange[1] * minMax[1] ) / valueRange[1];
             // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - End
 
-            // Restrict range.
+        // Restrict range.
             // add by dolkkok - #20170614-01 : __dzAxisProxy 정보가 없을때 예외처리
             var minMaxSpan = dataZoomModel.findRepresentativeAxisProxy(axisModel);
             if (minMaxSpan) {
                 minMaxSpan = minMaxSpan.getMinMaxSpan();
-                if (minMaxSpan.minValueSpan != null || minMaxSpan.maxValueSpan != null) {
-                    minMax = sliderMove(
-                        0, minMax.slice(), axis.scale.getExtent(), 0,
-                        minMaxSpan.minValueSpan, minMaxSpan.maxValueSpan
-                    );
-                }
+        if (minMaxSpan.minValueSpan != null || minMaxSpan.maxValueSpan != null) {
+            minMax = sliderMove(
+                0, minMax.slice(), axis.scale.getExtent(), 0,
+                minMaxSpan.minValueSpan, minMaxSpan.maxValueSpan
+            );
+        }
             }
 
-            dataZoomModel && (snapshot[dataZoomModel.id] = {
-                dataZoomId: dataZoomModel.id,
-                startValue: minMax[0],
+        dataZoomModel && (snapshot[dataZoomModel.id] = {
+            dataZoomId: dataZoomModel.id,
+            startValue: minMax[0],
                 endValue: minMax[1],
                 range: {
                     start: rangePercentStart,	// add by eltriny - #20161018-03
@@ -223,7 +242,7 @@ proto._onBrush = function (areas, opt) {
                     startValue: minMax[0],		// add by eltriny - #20161018-03
                     endValue: minMax[1]			// add by eltriny - #20161018-03
                 }
-            });
+        });
         }
     }
 
@@ -316,6 +335,7 @@ featureManager.register('dataZoom', DataZoom);
 
 
 // Create special dataZoom option for select
+// FIXME consider the case of merge option, where axes options are not exists.
 echarts.registerPreprocessor(function (option) {
     if (!option) {
         return;
@@ -335,6 +355,8 @@ echarts.registerPreprocessor(function (option) {
 
         if (toolboxOpt && toolboxOpt.feature) {
             var dataZoomOpt = toolboxOpt.feature.dataZoom;
+            // FIXME: If add dataZoom when setOption in merge mode,
+            // no axis info to be added. See `test/dataZoom-extreme.html`
             addForAxis('xAxis', dataZoomOpt);
             addForAxis('yAxis', dataZoomOpt);
         }

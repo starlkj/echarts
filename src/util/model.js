@@ -1,15 +1,35 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import * as zrUtil from 'zrender/src/core/util';
+import env from 'zrender/src/core/env';
 
 var each = zrUtil.each;
 var isObject = zrUtil.isObject;
 var isArray = zrUtil.isArray;
 
 /**
- * name may be displayed on screen, so use '-'.
- * But we should make sure it is not duplicated
- * with user specified name, so use '\0';
+ * Make the name displayable. But we should
+ * make sure it is not duplicated with user
+ * specified name, so use '\0';
  */
-export var DEFAULT_COMPONENT_NAME = '\0-';
+var DUMMY_COMPONENT_NAME_PREFIX = 'series\0';
 
 /**
  * If value is not array, then translate it to array.
@@ -40,6 +60,7 @@ export function normalizeToArray(value) {
  * @param {Array.<string>} subOpts
  */
 export function defaultEmphasis(opt, key, subOpts) {
+    // Caution: performance sensitive.
     if (opt) {
         opt[key] = opt[key] || {};
         opt.emphasis = opt.emphasis || {};
@@ -248,7 +269,9 @@ export function makeIdAndName(mapResult) {
             ? opt.name + ''
             : existCpt
             ? existCpt.name
-            : DEFAULT_COMPONENT_NAME;
+            // Avoid diffferent series has the same name,
+            // because name may be used like in color pallet.
+            : DUMMY_COMPONENT_NAME_PREFIX + index;
 
         if (existCpt) {
             keyInfo.id = existCpt.id;
@@ -271,6 +294,12 @@ export function makeIdAndName(mapResult) {
 
         idMap.set(keyInfo.id, item);
     });
+}
+
+export function isNameSpecified(componentModel) {
+    var name = componentModel.name;
+    // Is specified when `indexOf` get -1 or > 0.
+    return !!(name && name.indexOf(DUMMY_COMPONENT_NAME_PREFIX));
 }
 
 /**
@@ -494,4 +523,14 @@ export function getAttribute(dom, key) {
     return dom.getAttribute
         ? dom.getAttribute(key)
         : dom[key];
+}
+
+export function getRenderMode(renderModeOption) {
+    if (renderModeOption === 'auto') {
+        // Using html when `document` exists, use richText otherwise
+        return env.domSupported ? 'html' : 'richText';
+    }
+    else {
+        return renderModeOption || 'html';
+    }
 }

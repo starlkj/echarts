@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 import {each} from 'zrender/src/core/util';
 import Group from 'zrender/src/container/Group';
 import * as componentUtil from '../util/component';
@@ -99,6 +118,7 @@ Chart.prototype = {
 
     /**
      * Render in progressive mode.
+     * @param  {Object} params See taskParams in `stream/task.js`
      * @param  {module:echarts/model/Series} seriesModel
      * @param  {module:echarts/model/Global} ecModel
      * @param  {module:echarts/ExtensionAPI} api
@@ -114,7 +134,7 @@ Chart.prototype = {
      * @param  {Object} payload
      * @return {Object} {update: true}
      */
-    updateTransform: null
+    updateTransform: null,
 
     /**
      * The view contains the given point.
@@ -123,6 +143,15 @@ Chart.prototype = {
      * @return {boolean}
      */
     // containPoint: function () {}
+
+    /**
+     * @param {string} eventType
+     * @param {Object} query
+     * @param {module:zrender/Element} targetEl
+     * @param {Object} packedEvent
+     * @return {boolen} Pass only when return `true`.
+     */
+    filterForExposedEvent: null
 
 };
 
@@ -189,26 +218,45 @@ function renderTaskReset(context) {
     var api = context.api;
     var payload = context.payload;
     // ???! remove updateView updateVisual
-    var incremental = seriesModel.pipelineContext.incrementalRender;
+    var progressiveRender = seriesModel.pipelineContext.progressiveRender;
     var view = context.view;
 
     var updateMethod = payload && inner(payload).updateMethod;
-    var methodName = (incremental && view.incrementalPrepareRender)
+    var methodName = progressiveRender
         ? 'incrementalPrepareRender'
         : (updateMethod && view[updateMethod])
         ? updateMethod
+        // `appendData` is also supported when data amount
+        // is less than progressive threshold.
         : 'render';
 
-    view[methodName](seriesModel, ecModel, api, payload);
+    if (methodName !== 'render') {
+        view[methodName](seriesModel, ecModel, api, payload);
+    }
 
-    return incremental ? renderTaskProgress : null;
+    return progressMethodMap[methodName];
 }
 
-function renderTaskProgress(params, context) {
-    context.view.incrementalRender(
-        params, context.model, context.ecModel, context.api, context.payload
-    );
-}
-
+var progressMethodMap = {
+    incrementalPrepareRender: {
+        progress: function (params, context) {
+            context.view.incrementalRender(
+                params, context.model, context.ecModel, context.api, context.payload
+            );
+        }
+    },
+    render: {
+        // Put view.render in `progress` to support appendData. But in this case
+        // view.render should not be called in reset, otherwise it will be called
+        // twise. Use `forceFirstProgress` to make sure that view.render is called
+        // in any cases.
+        forceFirstProgress: true,
+        progress: function (params, context) {
+            context.view.render(
+                context.model, context.ecModel, context.api, context.payload
+            );
+        }
+    }
+};
 
 export default Chart;
