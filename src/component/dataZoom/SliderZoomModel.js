@@ -63,7 +63,7 @@ var SliderZoomModel = DataZoomModel.extend({
                 opacity: 1
             }
         },
-        borderColor: '#eee',                    // border color of the box. For compatibility,
+        borderColor: '#ddd',                    // border color of the box. For compatibility,
                                                 // if dataBackgroundColor is set, borderColor
                                                 // is ignored.
 
@@ -72,6 +72,9 @@ var SliderZoomModel = DataZoomModel.extend({
         // add by dolkkok
         handleIcon: 'path://M306.1,413c0,2.2-1.8,4-4,4h-59.8c-2.2,0-4-1.8-4-4V200.8c0-2.2,1.8-4,4-4h59.8c2.2,0,4,1.8,4,4V413z',
         // handleIcon: 'path://M4.9,17.8c0-1.4,4.5-10.5,5.5-12.4c0-0.1,0.6-1.1,0.9-1.1c0.4,0,0.9,1,0.9,1.1c1.1,2.2,5.4,11,5.4,12.4v17.8c0,1.5-0.6,2.1-1.3,2.1H6.1c-0.7,0-1.3-0.6-1.3-2.1V17.8z',
+        /* eslint-disable */
+        // handleIcon: 'M8.2,13.6V3.9H6.3v9.7H3.1v14.9h3.3v9.7h1.8v-9.7h3.3V13.6H8.2z M9.7,24.4H4.8v-1.4h4.9V24.4z M9.7,19.1H4.8v-1.4h4.9V19.1z',
+        /* eslint-enable */
         // Percent of the slider height
         handleSize: '100%',
 

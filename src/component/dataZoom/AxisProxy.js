@@ -269,12 +269,12 @@ AxisProxy.prototype = {
 
         // this.hasSeriesStacked = false;
         // each(targetSeries, function (series) {
-        // var data = series.getData();
-        // var dataDim = data.mapDimension(this._dimName);
-        // var stackedDimension = data.getCalculationInfo('stackedDimension');
-        // if (stackedDimension && stackedDimension === dataDim) {
-        // this.hasSeriesStacked = true;
-        // }
+            // var data = series.getData();
+            // var dataDim = data.mapDimension(this._dimName);
+            // var stackedDimension = data.getCalculationInfo('stackedDimension');
+            // if (stackedDimension && stackedDimension === dataDim) {
+                // this.hasSeriesStacked = true;
+            // }
         // }, this);
 
         var dataWindow = this.calculateDataWindow(dataZoomModel.option);
@@ -338,10 +338,13 @@ AxisProxy.prototype = {
         // TODO
         // filterMode 'weakFilter' and 'empty' is not optimized for huge data yet.
 
-        // Process series data
         each(seriesModels, function (seriesModel) {
             var seriesData = seriesModel.getData();
             var dataDims = seriesData.mapDimension(axisDim, true);
+
+            if (!dataDims.length) {
+                return;
+            }
 
             if (filterMode === 'weakFilter') {
                 seriesData.filterSelf(function (dataIndex) {

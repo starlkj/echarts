@@ -31,7 +31,7 @@ import Model from '../../model/Model';
 import * as globalListener from '../axisPointer/globalListener';
 import * as axisHelper from '../../coord/axisHelper';
 import * as axisPointerViewHelper from '../axisPointer/viewHelper';
-import { getRenderMode } from '../../util/model';
+import { getTooltipRenderMode } from '../../util/model';
 
 var bind = zrUtil.bind;
 var each = zrUtil.each;
@@ -52,7 +52,7 @@ export default echarts.extendComponentView({
 
         var tooltipModel = ecModel.getComponent('tooltip');
         var renderMode = tooltipModel.get('renderMode');
-        this._renderMode = getRenderMode(renderMode);
+        this._renderMode = getTooltipRenderMode(renderMode);
 
         var tooltipContent;
         if (this._renderMode === 'html') {
@@ -427,7 +427,7 @@ export default echarts.extendComponentView({
                 // (2) themeRiver, firstDataIndex is array, and first line is unnecessary.
                 var firstLine = valueLabel;
                 if (renderMode !== 'html') {
-                    singleDefaultHTML.push(seriesDefaultHTML.join(newLine))
+                    singleDefaultHTML.push(seriesDefaultHTML.join(newLine));
                 }
                 else {
                     singleDefaultHTML.push(
@@ -690,16 +690,16 @@ export default echarts.extendComponentView({
                 var lastIndices = lastItem.seriesDataIndices || [];
                 var newIndices = thisItem.seriesDataIndices || [];
 
-                contentNotChanged &=
-                    lastItem.value === thisItem.value
+                contentNotChanged
+                    &= lastItem.value === thisItem.value
                     && lastItem.axisType === thisItem.axisType
                     && lastItem.axisId === thisItem.axisId
                     && lastIndices.length === newIndices.length;
 
                 contentNotChanged && each(lastIndices, function (lastIdxItem, j) {
                     var newIdxItem = newIndices[j];
-                    contentNotChanged &=
-                        lastIdxItem.seriesIndex === newIdxItem.seriesIndex
+                    contentNotChanged
+                        &= lastIdxItem.seriesIndex === newIdxItem.seriesIndex
                         && lastIdxItem.dataIndex === newIdxItem.dataIndex;
                 });
             });

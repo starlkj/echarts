@@ -158,7 +158,6 @@ OptionManager.prototype = {
      * @return {Object} Init option
      */
     setOption: function (rawOption, optionPreprocessorFuncs) {
-
         if (rawOption) {
             // That set dat primitive is dangerous if user reuse the data when setOption again.
             zrUtil.each(modelUtil.normalizeToArray(rawOption.series), function (series) {

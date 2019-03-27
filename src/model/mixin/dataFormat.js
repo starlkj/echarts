@@ -19,7 +19,7 @@
 
 import {retrieveRawValue} from '../../data/helper/dataProvider';
 import {getTooltipMarker, formatTpl} from '../../util/format';
-import { getRenderMode } from '../../util/model';
+import { getTooltipRenderMode } from '../../util/model';
 
 var DIMENSION_LABEL_REG = /\{@(.+?)\}/g;
 
@@ -40,15 +40,18 @@ export default {
         var color = data.getItemVisual(dataIndex, 'color');
         var tooltipModel = this.ecModel.getComponent('tooltip');
         var renderModeOption = tooltipModel && tooltipModel.get('renderMode');
-        var renderMode = getRenderMode(renderModeOption);
+        var renderMode = getTooltipRenderMode(renderModeOption);
+        var mainType = this.mainType;
+        var isSeries = mainType === 'series';
 
         return {
-            componentType: this.mainType,
+            componentType: mainType,
             componentSubType: this.subType,
-            seriesType: this.mainType === 'series' ? this.subType : null,
+            componentIndex: this.componentIndex,
+            seriesType: isSeries ? this.subType : null,
             seriesIndex: this.seriesIndex,
-            seriesId: this.id,
-            seriesName: this.name,
+            seriesId: isSeries ? this.id : null,
+            seriesName: isSeries ? this.name : null,
             name: name,
             dataIndex: rawDataIndex,
             data: itemOpt,

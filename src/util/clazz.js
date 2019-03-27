@@ -164,7 +164,6 @@ export function enableClassManagement(entity, options) {
     };
 
     entity.getClass = function (componentMainType, subType, throwWhenNotFound) {
-
         var Clazz = storage[componentMainType];
 
         if (Clazz && Clazz[IS_CONTAINER]) {

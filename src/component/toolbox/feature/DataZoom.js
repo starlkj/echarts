@@ -219,30 +219,30 @@ proto._onBrush = function (areas, opt) {
             var rangePercentEnd = ( percentRange[1] * minMax[1] ) / valueRange[1];
             // add by eltriny - #20161018-03 : dataZoom 이벤트 시 start/end 와 startValue/endValue 모두 필요 - End
 
-        // Restrict range.
+            // Restrict range.
             // add by dolkkok - #20170614-01 : __dzAxisProxy 정보가 없을때 예외처리
             var minMaxSpan = dataZoomModel.findRepresentativeAxisProxy(axisModel);
             if (minMaxSpan) {
                 minMaxSpan = minMaxSpan.getMinMaxSpan();
-        if (minMaxSpan.minValueSpan != null || minMaxSpan.maxValueSpan != null) {
-            minMax = sliderMove(
-                0, minMax.slice(), axis.scale.getExtent(), 0,
-                minMaxSpan.minValueSpan, minMaxSpan.maxValueSpan
-            );
-        }
+                if (minMaxSpan.minValueSpan != null || minMaxSpan.maxValueSpan != null) {
+                    minMax = sliderMove(
+                        0, minMax.slice(), axis.scale.getExtent(), 0,
+                        minMaxSpan.minValueSpan, minMaxSpan.maxValueSpan
+                    );
+                }
             }
 
-        dataZoomModel && (snapshot[dataZoomModel.id] = {
-            dataZoomId: dataZoomModel.id,
-            startValue: minMax[0],
-                endValue: minMax[1],
-                range: {
-                    start: rangePercentStart,	// add by eltriny - #20161018-03
-                    end: rangePercentEnd,		// add by eltriny - #20161018-03
-                    startValue: minMax[0],		// add by eltriny - #20161018-03
-                    endValue: minMax[1]			// add by eltriny - #20161018-03
-                }
-        });
+            dataZoomModel && (snapshot[dataZoomModel.id] = {
+                dataZoomId: dataZoomModel.id,
+                startValue: minMax[0],
+                    endValue: minMax[1],
+                    range: {
+                        start: rangePercentStart,	// add by eltriny - #20161018-03
+                        end: rangePercentEnd,		// add by eltriny - #20161018-03
+                        startValue: minMax[0],		// add by eltriny - #20161018-03
+                        endValue: minMax[1]			// add by eltriny - #20161018-03
+                    }
+            });
         }
     }
 
@@ -371,7 +371,7 @@ echarts.registerPreprocessor(function (option) {
         var axisIndicesName = axisName + 'Index';
         var givenAxisIndices = dataZoomOpt[axisIndicesName];
         if (givenAxisIndices != null
-            && givenAxisIndices != 'all'
+            && givenAxisIndices !== 'all'
             && !zrUtil.isArray(givenAxisIndices)
         ) {
             givenAxisIndices = (givenAxisIndices === false || givenAxisIndices === 'none') ? [] : [givenAxisIndices];
@@ -379,7 +379,7 @@ echarts.registerPreprocessor(function (option) {
 
         forEachComponent(axisName, function (axisOpt, axisIndex) {
             if (givenAxisIndices != null
-                && givenAxisIndices != 'all'
+                && givenAxisIndices !== 'all'
                 && zrUtil.indexOf(givenAxisIndices, axisIndex) === -1
             ) {
                 return;

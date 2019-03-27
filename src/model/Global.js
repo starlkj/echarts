@@ -208,7 +208,6 @@ var GlobalModel = Model.extend({
                     componentModel.optionUpdated({}, false);
                 }
                 else {
-
                     var ComponentModelClass = ComponentModel.getClass(
                         mainType, resultItem.keyInfo.subType, true
                     );

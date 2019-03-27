@@ -187,8 +187,8 @@ var LegendModel = echarts.extendComponentModel({
         }
         // -- add by dolkkok - #20161213-01 : seriesname과 연동하지 않을때 --- End
         else{
-            return !(selected.hasOwnProperty(name) && !selected[name])
-                && zrUtil.indexOf(this._availableNames, name) >= 0;
+        return !(selected.hasOwnProperty(name) && !selected[name])
+            && zrUtil.indexOf(this._availableNames, name) >= 0;
         }
     },
 

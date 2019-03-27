@@ -86,7 +86,7 @@ var BRUSH_TYPE = {
  *            }
  *
  * @param {module:zrender/zrender~ZRender} zr
-     * @param {string} BrushController 를 생성하는 기능의 구분값 ( Add by eltriny )
+ * @param {string} BrushController 를 생성하는 기능의 구분값 ( Add by eltriny )
  */
 function BrushController( zr, type ) {
 
