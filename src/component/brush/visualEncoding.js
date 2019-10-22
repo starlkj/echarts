@@ -249,12 +249,12 @@ function doDispatch(api, brushSelected) {
 function checkInRange(selectorsByBrushType, rangeInfoList, data, dataIndex) {
     var itemLayout = data.getItemLayout(dataIndex);
     if (itemLayout) {	// add by eltriny - #20161017-01 : Select Brush 오류 처리
-    for (var i = 0, len = rangeInfoList.length; i < len; i++) {
-        var area = rangeInfoList[i];
-        if (selectorsByBrushType[area.brushType](
-            dataIndex, data, area.selectors, area
-        )) {
-            return true;
+        for (var i = 0, len = rangeInfoList.length; i < len; i++) {
+            var area = rangeInfoList[i];
+            if (selectorsByBrushType[area.brushType](
+                dataIndex, data, area.selectors, area
+            )) {
+                return true;
             }
         }
     }

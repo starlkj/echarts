@@ -235,13 +235,13 @@ proto._onBrush = function (areas, opt) {
             dataZoomModel && (snapshot[dataZoomModel.id] = {
                 dataZoomId: dataZoomModel.id,
                 startValue: minMax[0],
-                    endValue: minMax[1],
-                    range: {
-                        start: rangePercentStart,	// add by eltriny - #20161018-03
-                        end: rangePercentEnd,		// add by eltriny - #20161018-03
-                        startValue: minMax[0],		// add by eltriny - #20161018-03
-                        endValue: minMax[1]			// add by eltriny - #20161018-03
-                    }
+                endValue: minMax[1],
+                range: {
+                    start: rangePercentStart,	// add by eltriny - #20161018-03
+                    end: rangePercentEnd,		// add by eltriny - #20161018-03
+                    startValue: minMax[0],		// add by eltriny - #20161018-03
+                    endValue: minMax[1]			// add by eltriny - #20161018-03
+                }
             });
         }
     }

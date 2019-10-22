@@ -57,6 +57,14 @@ export default echarts.extendComponentView({
          * @type {module:zrender/Element}
          */
         this._backgroundEl;
+
+        /**
+         * If first rendering, `contentGroup.position` is [0, 0], which
+         * does not make sense and may cause unexepcted animation if adopted.
+         * @private
+         * @type {boolean}
+         */
+        this._isFirstRender = true;
     },
 
     /**
@@ -70,6 +78,8 @@ export default echarts.extendComponentView({
      * @override
      */
     render: function (legendModel, ecModel, api) {
+        var isFirstRender = this._isFirstRender;
+        this._isFirstRender = false;
 
         this.resetInner();
 
@@ -111,7 +121,8 @@ export default echarts.extendComponentView({
         var padding = legendModel.get('padding');
 
         var maxSize = layoutUtil.getLayoutRect(positionInfo, viewportSize, padding);
-        var mainRect = this.layoutInner(legendModel, itemAlign, maxSize);
+
+        var mainRect = this.layoutInner(legendModel, itemAlign, maxSize, isFirstRender);
 
         // Place mainGroup, based on the calculated `mainRect`.
         var layoutRect = layoutUtil.getLayoutRect(
@@ -303,13 +314,20 @@ export default echarts.extendComponentView({
                     image : ( 1 == this.page ) ? this.btn_prev_disable : this.btn_prev
                 }
             });
+
+            var pageTxtColor = '#333';
+            if( legendModel && legendModel.option
+                && legendModel.option.textStyle && legendModel.option.textStyle.color ) {
+                pageTxtColor = legendModel.option.textStyle.color;
+            }
             var pageTxt = new graphic.Text({
                 style: {
                     text	: this.page + ' / ' + nTotalPage,
                     x		: 30,
                     y		: 12,
                     width	: nPageTxtWidth,
-                    fill	: '#000000',
+                    fill	: pageTxtColor,
+                    textFill : pageTxtColor,
                     textVerticalAlign: 'middle'
                 },
                 silent 	: true
@@ -570,6 +588,14 @@ export default echarts.extendComponentView({
         contentGroup.attr('position', [-contentRect.x, -contentRect.y]);
 
         return this.group.getBoundingRect();
+    },
+
+    /**
+     * @protected
+     */
+    remove: function () {
+        this.getContentGroup().removeAll();
+        this._isFirstRender = true;
     }
 
 });

@@ -257,7 +257,11 @@ lineProto._createLine = function (lineData, idx, seriesScope) {
     // add by eltriny - #20161015-02 : MarkLine Label Rectangle --- End
 
     var label = new graphic.Text({
-        name: 'label'
+        name: 'label',
+        // FIXME
+        // Temporary solution for `focusNodeAdjacency`.
+        // line label do not use the opacity of lineStyle.
+        lineLabelOriginalOpacity: 1
     });
     this.add(label);
 
